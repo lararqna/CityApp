@@ -39,4 +39,13 @@
     <string name="info_invalid_email">Voer een geldig e-mailadres in.</string>
     <string name="info_required_fields">Voornaam en achternaam zijn verplicht.</string>
     <string name="success_welcome">Welkom, %1$s!</string>
+
+    <!-- Profiel details-->
+    <string name="profile_picture">Profielfoto</string>
+    <string name="profile_icon">Profiel icoon</string>
+    <string name="no_email">Geen e-mailadres</string>
+    <string name="birth_date_display">Geboortedatum: %1$s</string>
+    <string name="no_user_info">Geen gebruikersinformatie gevonden.</string>
+    <string name="logout">Uitloggen</string>
+
 </resources>
