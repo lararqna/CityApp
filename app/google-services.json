@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "472102742359",
+    "project_id": "cityapp-c2279",
+    "storage_bucket": "cityapp-c2279.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:472102742359:android:874caba2be263d374f7612",
+        "android_client_info": {
+          "package_name": "com.example.cityapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPWqT595ogdwBfxvqs-xfLo1ScoYUdT9w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
