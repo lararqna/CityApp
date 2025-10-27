@@ -1,11 +1,14 @@
 package com.example.cityapp.ui
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
+
 import androidx.compose.animation.fadeOut
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -20,12 +23,11 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.example.cityapp.R
 import com.example.cityapp.ui.theme.AppTheme
 import com.example.cityapp.ui.theme.CityAppTheme
 import com.google.firebase.auth.FirebaseAuth
@@ -45,7 +48,6 @@ fun RegisterScreen(
     navController: NavController,
     auth: FirebaseAuth?
 ) {
-
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var firstName by remember { mutableStateOf("") }
@@ -75,13 +77,13 @@ fun RegisterScreen(
 
             Icon(
                 imageVector = Icons.Default.Place,
-                contentDescription = "Place Icon",
+                contentDescription = stringResource(R.string.register),
                 modifier = Modifier.size(52.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Welkom bij\nStad Ontdekker",
+                text = stringResource(R.string.welcome_to),
                 color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
@@ -90,7 +92,7 @@ fun RegisterScreen(
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "Registreer om je avontuur te beginnen.",
+                text = stringResource(R.string.adventure_begins_register),
                 color = AppTheme.extendedColors.inactiveText,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
@@ -118,7 +120,7 @@ fun RegisterScreen(
                                 onClick = { navController.navigate("login") },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Inloggen", color = AppTheme.extendedColors.inactiveText)
+                                Text(stringResource(R.string.login), color = AppTheme.extendedColors.inactiveText)
                             }
                             Box(
                                 modifier = Modifier
@@ -132,7 +134,7 @@ fun RegisterScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    "Registreren",
+                                    text = stringResource(R.string.register),
                                     color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -145,10 +147,10 @@ fun RegisterScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Terug naar vorige stap"
+                                contentDescription = stringResource(R.string.back_to_previous_step)
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text("Terug")
+                            Text(stringResource(R.string.back))
                         }
                     }
                 }
@@ -171,15 +173,11 @@ fun RegisterScreen(
                             password = password,
                             onPasswordChange = { password = it },
                             onNextClicked = {
-
                                 val isEmailValid = android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
-
                                 if (isEmailValid && password.isNotBlank()) {
                                     currentPage = 2
-                                } else if (!isEmailValid) {
-                                    Toast.makeText(context, "Voer een geldig e-mailadres in.", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Vul een wachtwoord in.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.info_check_email_password), Toast.LENGTH_SHORT).show()
                                 }
                             }
                         )
@@ -192,50 +190,41 @@ fun RegisterScreen(
                             onBirthDateChange = { birthDate = it },
                             isLoading = isLoading,
                             onFinishClicked = {
-
                                 if (firstName.isNotBlank() && lastName.isNotBlank()) {
                                     isLoading = true
-
                                     auth?.createUserWithEmailAndPassword(email, password)
                                         ?.addOnCompleteListener { authTask ->
                                             if (authTask.isSuccessful) {
-                                                Log.d("RegisterScreen", "Auth gebruiker succesvol aangemaakt.")
                                                 val firebaseUser = authTask.result?.user
-
                                                 val userMap = hashMapOf(
                                                     "firstName" to firstName.trim(),
                                                     "lastName" to lastName.trim(),
                                                     "email" to email.trim().lowercase(),
                                                     "birthDate" to birthDate.trim()
                                                 )
-
-
                                                 firebaseUser?.let { user ->
                                                     Firebase.firestore.collection("users").document(user.uid)
                                                         .set(userMap)
                                                         .addOnSuccessListener {
-                                                            Log.d("RegisterScreen", "Firestore document succesvol aangemaakt.")
-                                                            Toast.makeText(context, "Welkom, $firstName!", Toast.LENGTH_SHORT).show()
+                                                            val welcomeMessage = context.getString(R.string.success_welcome, firstName)
+                                                            Toast.makeText(context, welcomeMessage, Toast.LENGTH_SHORT).show()
                                                             navController.navigate("home") { popUpTo(navController.graph.startDestinationId) { inclusive = true } }
                                                         }
                                                         .addOnFailureListener { e ->
-                                                            Log.w("RegisterScreen", "Fout bij opslaan Firestore data", e)
-                                                            Toast.makeText(context, "Fout bij opslaan profiel: ${e.message}", Toast.LENGTH_LONG).show()
+                                                            val errorMessage = context.getString(R.string.error_profile_save_failed, e.message)
+                                                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                                                         }
-                                                        .addOnCompleteListener { isLoading = false } // Stop laden na Firestore
-                                                } ?: run {
-                                                    isLoading = false
-                                                    Toast.makeText(context, "Onbekende fout opgetreden.", Toast.LENGTH_SHORT).show()
+                                                        .addOnCompleteListener { isLoading = false }
                                                 }
                                             } else {
                                                 isLoading = false
-                                                val error = authTask.exception?.message ?: "Onbekende fout bij registratie"
-                                                Log.e("RegisterScreen", "Auth registratie mislukt: $error")
-                                                Toast.makeText(context, "Registratie mislukt: $error", Toast.LENGTH_LONG).show()
+                                                val error = authTask.exception?.message ?: context.getString(R.string.error_unknown)
+                                                val errorMessage = context.getString(R.string.error_registration_failed, error)
+                                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                                             }
                                         }
                                 } else {
-                                    Toast.makeText(context, "Voornaam en achternaam zijn verplicht.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.info_required_fields), Toast.LENGTH_SHORT).show()
                                 }
                             }
                         )
@@ -260,7 +249,7 @@ fun AccountCreationPage(
         OutlinedTextField(
             value = email,
             onValueChange = onEmailChange,
-            label = { Text("E-mailadres") },
+            label = { Text(stringResource(R.string.email_address)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(5.dp)
@@ -269,11 +258,9 @@ fun AccountCreationPage(
         OutlinedTextField(
             value = password,
             onValueChange = onPasswordChange,
-            label = { Text("Wachtwoord") },
+            label = { Text(stringResource(R.string.password)) },
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
-
-
             modifier = Modifier
                 .fillMaxWidth()
                 .onFocusChanged { focusState ->
@@ -295,7 +282,7 @@ fun AccountCreationPage(
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            Text("Volgende", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.next), fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -320,7 +307,7 @@ fun PasswordRequirementHint() {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Een sterk wachtwoord bevat letters, cijfers en symbolen.",
+            text = stringResource(R.string.password_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -337,13 +324,13 @@ fun ProfileDetailsPage(
     onFinishClicked: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Bijna klaar! Vertel ons meer over jezelf.", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Text(stringResource(R.string.almost_done), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
-        OutlinedTextField(value = firstName, onValueChange = onFirstNameChange, label = { Text("Voornaam*") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
+        OutlinedTextField(value = firstName, onValueChange = onFirstNameChange, label = { Text(stringResource(R.string.first_name_required)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(value = lastName, onValueChange = onLastNameChange, label = { Text("Achternaam*") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
+        OutlinedTextField(value = lastName, onValueChange = onLastNameChange, label = { Text(stringResource(R.string.last_name_required)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(value = birthDate, onValueChange = onBirthDateChange, label = { Text("Geboortedatum (optioneel)") }, placeholder = { Text("dd-mm-jjjj") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
+        OutlinedTextField(value = birthDate, onValueChange = onBirthDateChange, label = { Text(stringResource(R.string.birth_date_optional)) }, placeholder = { Text(stringResource(R.string.date_placeholder)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onFinishClicked,
@@ -356,7 +343,7 @@ fun ProfileDetailsPage(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 3.dp)
             } else {
-                Text("Registratie voltooien", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.complete_registration), fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

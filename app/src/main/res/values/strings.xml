@@ -1,3 +1,42 @@
 <resources>
+    <!-- Algemene App Teksten -->
     <string name="app_name">CityApp</string>
+    <string name="welcome_to">Welkom bij\nStad Ontdekker</string>
+
+    <!-- Login & Registratie Schermen -->
+    <string name="adventure_begins_login">Log in om je avontuur te beginnen.</string>
+    <string name="adventure_begins_register">Registreer om je avontuur te beginnen.</string>
+    <string name="login">Inloggen</string>
+    <string name="register">Registreren</string>
+    <string name="email_address">E-mailadres</string>
+    <string name="password">Wachtwoord</string>
+    <string name="forgot_password">Wachtwoord vergeten?</string>
+    <string name="next">Volgende</string>
+    <string name="complete_registration">Registratie voltooien</string>
+    <string name="back">Terug</string>
+    <string name="back_to_previous_step">Terug naar vorige stap</string>
+
+    <!-- Profiel Details -->
+    <string name="almost_done">Bijna klaar! Vertel ons meer over jezelf.</string>
+    <string name="first_name_required">Voornaam (verplicht)</string>
+    <string name="last_name_required">Achternaam (verplicht)</string>
+    <string name="birth_date_optional">Geboortedatum (optioneel)</string>
+    <string name="date_placeholder">dd-mm-jjjj</string>
+
+    <!-- Wachtwoord Hint -->
+    <string name="password_hint">Een sterk wachtwoord bevat letters, cijfers en symbolen.</string>
+
+    <!-- Toast / Error Berichten -->
+    <string name="error_fill_all_fields">Vul alle velden in.</string>
+    <string name="error_login_failed">Login mislukt: %1$s</string> <!-- %1$s wordt een variabele -->
+    <string name="error_login_failed_unknown">Login mislukt: Onbekende fout</string>
+    <string name="success_login">Login gelukt!</string>
+    <string name="error_profile_save_failed">Fout bij opslaan profiel: %1$s</string>
+    <string name="error_registration_failed">Registratie mislukt: %1$s</string>
+    <string name="error_unknown">Onbekende fout</string>
+    <string name="info_check_email_password">Controleer je e-mail en wachtwoord.</string>
+    <string name="info_fill_password">Vul een wachtwoord in.</string>
+    <string name="info_invalid_email">Voer een geldig e-mailadres in.</string>
+    <string name="info_required_fields">Voornaam en achternaam zijn verplicht.</string>
+    <string name="success_welcome">Welkom, %1$s!</string>
 </resources>
