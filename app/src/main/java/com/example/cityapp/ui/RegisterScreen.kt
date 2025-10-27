@@ -2,6 +2,12 @@ package com.example.cityapp.ui
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,6 +33,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.cityapp.ui.theme.AppTheme
 import com.example.cityapp.ui.theme.CityAppTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
@@ -33,12 +42,16 @@ fun RegisterScreen(
     navController: NavController,
     auth: FirebaseAuth?
 ) {
-    var firstName by remember { mutableStateOf("") }
-    var lastName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var birthDate by remember { mutableStateOf("") }
+
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(false) }
+    var currentPage by remember { mutableStateOf(1) }
+    var createdUser by remember { mutableStateOf<FirebaseUser?>(null) }
 
     Box(
         modifier = Modifier
@@ -51,20 +64,16 @@ fun RegisterScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 40.dp)
-
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(modifier = Modifier.height(80.dp))
-
             Icon(
                 imageVector = Icons.Default.Place,
                 contentDescription = "Place Icon",
                 modifier = Modifier.size(52.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-
             Spacer(modifier = Modifier.height(16.dp))
-
             Text(
                 text = "Welkom bij\nStad Ontdekker",
                 color = MaterialTheme.colorScheme.onBackground,
@@ -73,9 +82,7 @@ fun RegisterScreen(
                 textAlign = TextAlign.Center,
                 lineHeight = 30.sp
             )
-
             Spacer(modifier = Modifier.height(10.dp))
-
             Text(
                 text = "Registreer om je avontuur te beginnen.",
                 color = AppTheme.extendedColors.inactiveText,
@@ -83,7 +90,6 @@ fun RegisterScreen(
                 textAlign = TextAlign.Center,
                 lineHeight = 20.sp
             )
-
             Spacer(modifier = Modifier.height(30.dp))
             Row(
                 modifier = Modifier
@@ -94,11 +100,11 @@ fun RegisterScreen(
             ) {
                 TextButton(
                     onClick = { navController.navigate("login") },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    enabled = currentPage == 1
                 ) {
                     Text("Inloggen", color = AppTheme.extendedColors.inactiveText)
                 }
-
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -114,123 +120,139 @@ fun RegisterScreen(
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(24.dp))
-
-            OutlinedTextField(
-                value = firstName,
-                onValueChange = { firstName = it },
-                label = { Text("Voornaam") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(5.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = lastName,
-                onValueChange = { lastName = it },
-                label = { Text("Achternaam") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(5.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("E-mailadres") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(5.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Wachtwoord") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(5.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = {
-                    if (firstName.isNotBlank() && lastName.isNotBlank() && email.isNotBlank() && password.isNotBlank()) {
-                        isLoading = true
-                        auth?.createUserWithEmailAndPassword(email, password)
-                            ?.addOnCompleteListener { task ->
-                                if (task.isSuccessful) {
-                                    Log.d("RegisterScreen", "Auth gebruiker succesvol aangemaakt.")
-                                    val firebaseUser = task.result?.user
-                                    if (firebaseUser != null) {
-                                        val userMap = hashMapOf(
-                                            "firstName" to firstName.trim(),
-                                            "lastName" to lastName.trim(),
-                                            "email" to email.trim().lowercase()
-                                        )
-
-                                        val db = Firebase.firestore
-                                        db.collection("users").document(firebaseUser.uid)
-                                            .set(userMap)
-                                            .addOnSuccessListener {
-                                                Log.d("RegisterScreen", "Firestore document succesvol aangemaakt voor UID: ${firebaseUser.uid}")
-                                                isLoading = false
-                                                Toast.makeText(context, "Registratie gelukt!", Toast.LENGTH_SHORT).show()
-                                                navController.navigate("home") {
-                                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                                                }
-                                            }
-                                            .addOnFailureListener { e ->
-                                                Log.w("RegisterScreen", "Fout bij aanmaken Firestore document", e)
-                                                isLoading = false
-                                                Toast.makeText(context, "Fout bij opslaan gegevens: ${e.message}", Toast.LENGTH_LONG).show()
-                                            }
+            AnimatedContent(
+                targetState = currentPage,
+                transitionSpec = {
+                    slideInHorizontally { width -> width } + fadeIn() togetherWith
+                            slideOutHorizontally { width -> -width } + fadeOut()
+                }, label = "page_animation"
+            ) { page ->
+                when (page) {
+                    1 -> AccountCreationPage(
+                        email = email,
+                        onEmailChange = { email = it },
+                        password = password,
+                        onPasswordChange = { password = it },
+                        isLoading = isLoading,
+                        onNextClicked = {
+                            if (email.isNotBlank() && password.isNotBlank()) {
+                                isLoading = true
+                                auth?.createUserWithEmailAndPassword(email, password)
+                                    ?.addOnCompleteListener { task ->
+                                        if (task.isSuccessful) {
+                                            Log.d("RegisterScreen", "Stap 1: Auth gebruiker succesvol aangemaakt.")
+                                            createdUser = task.result?.user
+                                            currentPage = 2
+                                        } else {
+                                            val error = task.exception?.message ?: "Onbekende fout"
+                                            Toast.makeText(context, "Registratie mislukt: $error", Toast.LENGTH_LONG).show()
+                                        }
+                                        isLoading = false
                                     }
-                                } else {
-                                    isLoading = false
-                                    val exception = task.exception?.message ?: "Onbekende fout bij registratie"
-                                    Log.e("RegisterScreen", "Auth registratie mislukt: $exception")
-                                    Toast.makeText(context, "Registratie mislukt: $exception", Toast.LENGTH_LONG).show()
-                                }
+                            } else {
+                                Toast.makeText(context, "Vul e-mailadres en wachtwoord in.", Toast.LENGTH_SHORT).show()
                             }
-                    } else {
-                        Toast.makeText(context, "Vul alle velden in a.u.b.", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                enabled = !isLoading,
-                shape = RoundedCornerShape(5.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 3.dp
+                        }
                     )
-                } else {
-                    Text(
-                        text = "Maak account aan",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
+                    2 -> ProfileDetailsPage(
+                        firstName = firstName,
+                        onFirstNameChange = { firstName = it },
+                        lastName = lastName,
+                        onLastNameChange = { lastName = it },
+                        birthDate = birthDate,
+                        onBirthDateChange = { birthDate = it },
+                        isLoading = isLoading,
+                        onFinishClicked = {
+                            if (firstName.isNotBlank() && lastName.isNotBlank()) {
+                                isLoading = true
+                                val userMap = hashMapOf(
+                                    "firstName" to firstName.trim(),
+                                    "lastName" to lastName.trim(),
+                                    "email" to (createdUser?.email ?: email.trim().lowercase()),
+                                    "birthDate" to birthDate.trim() // Sla op, zelfs als leeg
+                                )
+
+                                createdUser?.let { user ->
+                                    Firebase.firestore.collection("users").document(user.uid)
+                                        .set(userMap)
+                                        .addOnSuccessListener {
+                                            Log.d("RegisterScreen", "Stap 2: Firestore document succesvol aangemaakt.")
+                                            Toast.makeText(context, "Welkom, $firstName!", Toast.LENGTH_SHORT).show()
+                                            navController.navigate("home") { popUpTo(navController.graph.startDestinationId) { inclusive = true } }
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Toast.makeText(context, "Fout bij opslaan profiel: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                        .addOnCompleteListener { isLoading = false }
+                                }
+                            } else {
+                                Toast.makeText(context, "Voornaam en achternaam zijn verplicht.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
                 }
             }
             Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
+
+@Composable
+fun AccountCreationPage(
+    email: String, onEmailChange: (String) -> Unit,
+    password: String, onPasswordChange: (String) -> Unit,
+    isLoading: Boolean,
+    onNextClicked: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        OutlinedTextField(value = email, onValueChange = onEmailChange, label = { Text("E-mailadres") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(value = password, onValueChange = onPasswordChange, label = { Text("Wachtwoord") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onNextClicked,
+            enabled = !isLoading,
+            shape = RoundedCornerShape(5.dp),
+            modifier = Modifier.fillMaxWidth().height(50.dp)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 3.dp)
+            } else {
+                Text("Volgende", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileDetailsPage(
+    firstName: String, onFirstNameChange: (String) -> Unit,
+    lastName: String, onLastNameChange: (String) -> Unit,
+    birthDate: String, onBirthDateChange: (String) -> Unit,
+    isLoading: Boolean,
+    onFinishClicked: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Bijna klaar! Vertel ons meer over jezelf.", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(24.dp))
+        OutlinedTextField(value = firstName, onValueChange = onFirstNameChange, label = { Text("Voornaam (verplicht)") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(value = lastName, onValueChange = onLastNameChange, label = { Text("Achternaam (verplicht)") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(value = birthDate, onValueChange = onBirthDateChange, label = { Text("Geboortedatum (optioneel)") }, placeholder = { Text("dd-mm-jjjj") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onFinishClicked,
+            enabled = !isLoading,
+            shape = RoundedCornerShape(5.dp),
+            modifier = Modifier.fillMaxWidth().height(50.dp)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 3.dp)
+            } else {
+                Text("Registratie voltooien", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
