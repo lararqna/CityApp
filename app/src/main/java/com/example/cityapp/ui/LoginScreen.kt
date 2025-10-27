@@ -131,7 +131,7 @@ fun LoginScreen(
                 shape = RoundedCornerShape(5.dp)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             TextButton(
                 onClick = { /* TODO: Logica voor wachtwoord vergeten */ },
@@ -144,7 +144,7 @@ fun LoginScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Button(
                 onClick = {
