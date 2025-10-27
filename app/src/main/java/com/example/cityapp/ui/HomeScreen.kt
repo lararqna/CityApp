@@ -4,11 +4,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AddCircleOutline
-import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Apartment
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
+import com.google.firebase.auth.FirebaseAuth
 
 data class BottomNavItem(
     val label: String,
@@ -34,13 +35,13 @@ data class BottomNavItem(
 )
 
 @Composable
-fun HomeScreen(navController: NavController) {
+fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
     val items = listOf(
         BottomNavItem(
-            label = "Ontdekken",
-            selectedIcon = Icons.Filled.Explore,
-            unselectedIcon = Icons.Outlined.Explore,
-            route = "discover"
+            label = "Steden",
+            selectedIcon = Icons.Filled.Apartment,
+            unselectedIcon = Icons.Outlined.Apartment,
+            route = "apartment"
         ),
         BottomNavItem(
             label = "Kaart",
@@ -98,7 +99,11 @@ fun HomeScreen(navController: NavController) {
             0 -> Text("Ontdekken Scherm", modifier = Modifier.padding(innerPadding))
             1 -> Text("Kaart Scherm", modifier = Modifier.padding(innerPadding))
             2 -> Text("Toevoegen Scherm", modifier = Modifier.padding(innerPadding))
-            3 -> Text("Profiel Scherm", modifier = Modifier.padding(innerPadding))
+            3 -> ProfileScreen(
+                navController = navController,
+                auth = auth,
+                modifier = Modifier.padding(innerPadding)
+            )
         }
     }
 }
