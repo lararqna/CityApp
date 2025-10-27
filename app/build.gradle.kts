@@ -46,6 +46,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("androidx.navigation:navigation-compose:2.8.0-beta05")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("androidx.compose.material:material-icons-extended-android:1.6.8")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
