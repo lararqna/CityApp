@@ -4,13 +4,13 @@ import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,15 +25,20 @@ import androidx.navigation.compose.rememberNavController
 import com.example.cityapp.ui.theme.AppTheme
 import com.example.cityapp.ui.theme.CityAppTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 
 @Composable
 fun RegisterScreen(
     navController: NavController,
     auth: FirebaseAuth?
 ) {
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val context = LocalContext.current
+    var isLoading by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -46,8 +51,10 @@ fun RegisterScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 40.dp)
+
+                .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(120.dp))
+            Spacer(modifier = Modifier.height(80.dp))
 
             Icon(
                 imageVector = Icons.Default.Place,
@@ -109,6 +116,29 @@ fun RegisterScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            OutlinedTextField(
+                value = firstName,
+                onValueChange = { firstName = it },
+                label = { Text("Voornaam") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(5.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = lastName,
+                onValueChange = { lastName = it },
+                label = { Text("Achternaam") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(5.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -130,29 +160,53 @@ fun RegisterScreen(
                 shape = RoundedCornerShape(5.dp)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    if (email.isNotBlank() && password.isNotBlank()) {
+                    if (firstName.isNotBlank() && lastName.isNotBlank() && email.isNotBlank() && password.isNotBlank()) {
+                        isLoading = true
                         auth?.createUserWithEmailAndPassword(email, password)
                             ?.addOnCompleteListener { task ->
                                 if (task.isSuccessful) {
-                                    Log.d("RegisterScreen", "Gebruiker succesvol geregistreerd.")
-                                    Toast.makeText(context, "Registratie gelukt!", Toast.LENGTH_SHORT).show()
-                                    navController.navigate("home") {
-                                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                    Log.d("RegisterScreen", "Auth gebruiker succesvol aangemaakt.")
+                                    val firebaseUser = task.result?.user
+                                    if (firebaseUser != null) {
+                                        val userMap = hashMapOf(
+                                            "firstName" to firstName.trim(),
+                                            "lastName" to lastName.trim(),
+                                            "email" to email.trim().lowercase()
+                                        )
+
+                                        val db = Firebase.firestore
+                                        db.collection("users").document(firebaseUser.uid)
+                                            .set(userMap)
+                                            .addOnSuccessListener {
+                                                Log.d("RegisterScreen", "Firestore document succesvol aangemaakt voor UID: ${firebaseUser.uid}")
+                                                isLoading = false
+                                                Toast.makeText(context, "Registratie gelukt!", Toast.LENGTH_SHORT).show()
+                                                navController.navigate("home") {
+                                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                                }
+                                            }
+                                            .addOnFailureListener { e ->
+                                                Log.w("RegisterScreen", "Fout bij aanmaken Firestore document", e)
+                                                isLoading = false
+                                                Toast.makeText(context, "Fout bij opslaan gegevens: ${e.message}", Toast.LENGTH_LONG).show()
+                                            }
                                     }
                                 } else {
-                                    val exception = task.exception?.message ?: "Onbekende fout"
-                                    Log.e("RegisterScreen", "Registratie mislukt: $exception")
+                                    isLoading = false
+                                    val exception = task.exception?.message ?: "Onbekende fout bij registratie"
+                                    Log.e("RegisterScreen", "Auth registratie mislukt: $exception")
                                     Toast.makeText(context, "Registratie mislukt: $exception", Toast.LENGTH_LONG).show()
                                 }
                             }
                     } else {
-                        Toast.makeText(context, "Vul alle velden in.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Vul alle velden in a.u.b.", Toast.LENGTH_SHORT).show()
                     }
                 },
+                enabled = !isLoading,
                 shape = RoundedCornerShape(5.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -161,13 +215,22 @@ fun RegisterScreen(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
-                Text(
-                    text = "Maak account aan",
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 3.dp
+                    )
+                } else {
+                    Text(
+                        text = "Maak account aan",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
