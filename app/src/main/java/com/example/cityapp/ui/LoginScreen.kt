@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -49,8 +50,8 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(120.dp))
 
             Icon(
-                imageVector = Icons.Default.LocationOn,
-                contentDescription = "Compass Icon",
+                imageVector = Icons.Default.Place,
+                contentDescription = "Place Icon",
                 modifier = Modifier.size(52.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -69,7 +70,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "Log in of maak een account aan\nom je avontuur te beginnen.",
+                text = "Log in om je avontuur te beginnen.",
                 color = AppTheme.extendedColors.inactiveText,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
