@@ -1,6 +1,9 @@
 package com.example.cityapp.ui
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.*
@@ -9,13 +12,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
+import coil.compose.rememberAsyncImagePainter
+import com.example.cityapp.R
 import com.example.cityapp.models.User
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.firestore.ktx.toObject
 import com.google.firebase.ktx.Firebase
@@ -28,7 +36,7 @@ fun ProfileScreen(
 ) {
     var user by remember { mutableStateOf<User?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-
+    val context = LocalContext.current
     LaunchedEffect(key1 = auth.currentUser) {
         val firebaseUser = auth.currentUser
         if (firebaseUser != null) {
@@ -54,12 +62,30 @@ fun ProfileScreen(
     ) {
         Spacer(modifier = Modifier.height(60.dp))
 
-        Icon(
-            imageVector = Icons.Outlined.AccountCircle,
-            contentDescription = "Profiel icoon",
-            modifier = Modifier.size(100.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
+        Box(
+            modifier = Modifier
+                .size(150.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            if (user?.profilePictureUrl?.isNotBlank() == true) {
+                Image(
+                    painter = rememberAsyncImagePainter(user?.profilePictureUrl),
+                    contentDescription = context.getString(R.string.profile_picture),
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.AccountCircle,
+                    contentDescription = context.getString(R.string.profile_icon),
+                    modifier = Modifier.size(100.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         if (isLoading) {
@@ -73,7 +99,7 @@ fun ProfileScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = user?.email ?: "Geen e-mailadres",
+                text = user?.email ?: context.getString(R.string.no_email),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

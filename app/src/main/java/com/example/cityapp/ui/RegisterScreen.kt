@@ -1,31 +1,40 @@
 package com.example.cityapp.ui
 
+import android.content.Context
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-
 import androidx.compose.animation.fadeOut
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,12 +45,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import coil.compose.rememberAsyncImagePainter
 import com.example.cityapp.R
 import com.example.cityapp.ui.theme.AppTheme
 import com.example.cityapp.ui.theme.CityAppTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.ktx.storage
 
 @Composable
 fun RegisterScreen(
@@ -53,12 +65,49 @@ fun RegisterScreen(
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
     var birthDate by remember { mutableStateOf("") }
+    var profileImageUri by remember { mutableStateOf<Uri?>(null) }
 
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(false) }
     var currentPage by remember { mutableStateOf(1) }
 
-    val goToFirstPage = { currentPage = 1 }
+    val goToPage: (Int) -> Unit = { page -> currentPage = page }
+
+    val handleFinalRegistration = { selectedUri: Uri? ->
+        isLoading = true
+        auth?.createUserWithEmailAndPassword(email, password)
+            ?.addOnCompleteListener { authTask ->
+                if (!authTask.isSuccessful) {
+                    isLoading = false
+                    val error = authTask.exception?.message ?: context.getString(R.string.error_unknown)
+                    val errorMessage = context.getString(R.string.error_registration_failed, error)
+                    Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                    return@addOnCompleteListener
+                }
+
+                val firebaseUser = authTask.result?.user ?: run {
+                    isLoading = false; return@addOnCompleteListener
+                }
+
+                if (selectedUri != null) {
+                    val storageRef = Firebase.storage.reference
+                    val imageRef = storageRef.child("profile_pictures/${firebaseUser.uid}")
+                    imageRef.putFile(selectedUri)
+                        .continueWithTask { task ->
+                            if (!task.isSuccessful) {
+                                task.exception?.let { throw it }
+                            }
+                            imageRef.downloadUrl
+                        }
+                        .addOnCompleteListener { urlTask ->
+                            val downloadUrl = if (urlTask.isSuccessful) urlTask.result.toString() else ""
+                            saveUserDataToFirestore(firebaseUser, downloadUrl, navController, context, firstName, lastName, email, birthDate) { isLoading = false }
+                        }
+                } else {
+                    saveUserDataToFirestore(firebaseUser, "", navController, context, firstName, lastName, email, birthDate) { isLoading = false }
+                }
+            }
+    }
 
     Box(
         modifier = Modifier
@@ -100,7 +149,8 @@ fun RegisterScreen(
             )
             Spacer(modifier = Modifier.height(30.dp))
 
-            Crossfade(targetState = currentPage, label = "ToggleToBackArrow") { page ->
+
+            Crossfade(targetState = currentPage, label = "ToggleToBackArrow", animationSpec = tween(300)) { page ->
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -142,7 +192,7 @@ fun RegisterScreen(
                         }
                     } else {
                         TextButton(
-                            onClick = goToFirstPage,
+                            onClick = { goToPage(currentPage - 1) },
                             modifier = Modifier.align(Alignment.CenterStart)
                         ) {
                             Icon(
@@ -174,8 +224,8 @@ fun RegisterScreen(
                             onPasswordChange = { password = it },
                             onNextClicked = {
                                 val isEmailValid = android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
-                                if (isEmailValid && password.isNotBlank()) {
-                                    currentPage = 2
+                                if (isEmailValid && password.length >= 6) {
+                                    goToPage(2)
                                 } else {
                                     Toast.makeText(context, context.getString(R.string.info_check_email_password), Toast.LENGTH_SHORT).show()
                                 }
@@ -188,45 +238,20 @@ fun RegisterScreen(
                             onLastNameChange = { lastName = it },
                             birthDate = birthDate,
                             onBirthDateChange = { birthDate = it },
-                            isLoading = isLoading,
-                            onFinishClicked = {
+                            onNextClicked = {
                                 if (firstName.isNotBlank() && lastName.isNotBlank()) {
-                                    isLoading = true
-                                    auth?.createUserWithEmailAndPassword(email, password)
-                                        ?.addOnCompleteListener { authTask ->
-                                            if (authTask.isSuccessful) {
-                                                val firebaseUser = authTask.result?.user
-                                                val userMap = hashMapOf(
-                                                    "firstName" to firstName.trim(),
-                                                    "lastName" to lastName.trim(),
-                                                    "email" to email.trim().lowercase(),
-                                                    "birthDate" to birthDate.trim()
-                                                )
-                                                firebaseUser?.let { user ->
-                                                    Firebase.firestore.collection("users").document(user.uid)
-                                                        .set(userMap)
-                                                        .addOnSuccessListener {
-                                                            val welcomeMessage = context.getString(R.string.success_welcome, firstName)
-                                                            Toast.makeText(context, welcomeMessage, Toast.LENGTH_SHORT).show()
-                                                            navController.navigate("home") { popUpTo(navController.graph.startDestinationId) { inclusive = true } }
-                                                        }
-                                                        .addOnFailureListener { e ->
-                                                            val errorMessage = context.getString(R.string.error_profile_save_failed, e.message)
-                                                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
-                                                        }
-                                                        .addOnCompleteListener { isLoading = false }
-                                                }
-                                            } else {
-                                                isLoading = false
-                                                val error = authTask.exception?.message ?: context.getString(R.string.error_unknown)
-                                                val errorMessage = context.getString(R.string.error_registration_failed, error)
-                                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
-                                            }
-                                        }
+                                    goToPage(3)
                                 } else {
                                     Toast.makeText(context, context.getString(R.string.info_required_fields), Toast.LENGTH_SHORT).show()
                                 }
                             }
+                        )
+                        3 -> ProfilePicturePage(
+                            selectedImageUri = profileImageUri,
+                            onImageSelected = { profileImageUri = it },
+                            isLoading = isLoading,
+                            onFinishClicked = { handleFinalRegistration(profileImageUri) },
+                            onSkipClicked = { handleFinalRegistration(null) }
                         )
                     }
                 }
@@ -234,6 +259,39 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(40.dp))
         }
     }
+}
+
+private fun saveUserDataToFirestore(
+    firebaseUser: FirebaseUser,
+    profilePictureUrl: String,
+    navController: NavController,
+    context: Context,
+    firstName: String,
+    lastName: String,
+    email: String,
+    birthDate: String,
+    onComplete: () -> Unit
+) {
+    val userMap = hashMapOf(
+        "firstName" to firstName.trim(),
+        "lastName" to lastName.trim(),
+        "email" to email.trim().lowercase(),
+        "birthDate" to birthDate.trim(),
+        "profilePictureUrl" to profilePictureUrl
+    )
+
+    Firebase.firestore.collection("users").document(firebaseUser.uid)
+        .set(userMap)
+        .addOnSuccessListener {
+            val welcomeMessage = context.getString(R.string.success_welcome, firstName)
+            Toast.makeText(context, welcomeMessage, Toast.LENGTH_SHORT).show()
+            navController.navigate("home") { popUpTo(navController.graph.startDestinationId) { inclusive = true } }
+        }
+        .addOnFailureListener { e ->
+            val errorMessage = context.getString(R.string.error_profile_save_failed, e.message)
+            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+        }
+        .addOnCompleteListener { onComplete() }
 }
 
 
@@ -314,14 +372,12 @@ fun PasswordRequirementHint() {
     }
 }
 
-
 @Composable
 fun ProfileDetailsPage(
     firstName: String, onFirstNameChange: (String) -> Unit,
     lastName: String, onLastNameChange: (String) -> Unit,
     birthDate: String, onBirthDateChange: (String) -> Unit,
-    isLoading: Boolean,
-    onFinishClicked: () -> Unit
+    onNextClicked: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(R.string.almost_done), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
@@ -333,6 +389,81 @@ fun ProfileDetailsPage(
         OutlinedTextField(value = birthDate, onValueChange = onBirthDateChange, label = { Text(stringResource(R.string.birth_date_optional)) }, placeholder = { Text(stringResource(R.string.date_placeholder)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(5.dp))
         Spacer(modifier = Modifier.height(24.dp))
         Button(
+            onClick = onNextClicked,
+            shape = RoundedCornerShape(5.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+        ) {
+            Text("Volgende", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun ProfilePicturePage(
+    selectedImageUri: Uri?,
+    onImageSelected: (Uri?) -> Unit,
+    isLoading: Boolean,
+    onFinishClicked: () -> Unit,
+    onSkipClicked: () -> Unit
+) {
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri: Uri? -> onImageSelected(uri) }
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            "Nog één ding!",
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Voeg een profielfoto toe (optioneel).",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Box(
+            modifier = Modifier
+                .size(150.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable { imagePickerLauncher.launch("image/*") },
+            contentAlignment = Alignment.Center
+        ) {
+            if (selectedImageUri != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(selectedImageUri),
+                    contentDescription = "Geselecteerde profielfoto",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profielfoto placeholder",
+                    modifier = Modifier.size(80.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Tik om een foto te kiezen",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Button(
             onClick = onFinishClicked,
             enabled = !isLoading,
             shape = RoundedCornerShape(5.dp),
@@ -341,10 +472,15 @@ fun ProfileDetailsPage(
                 .height(50.dp)
         ) {
             if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 3.dp)
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
             } else {
                 Text(stringResource(R.string.complete_registration), fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(onClick = onSkipClicked, enabled = !isLoading) {
+            Text("Nu overslaan")
         }
     }
 }
