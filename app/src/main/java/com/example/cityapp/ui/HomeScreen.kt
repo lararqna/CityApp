@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
+import com.example.cityapp.ui.MapScreen
 
 data class BottomNavItem(
     val label: String,
@@ -97,7 +98,7 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
     ) { innerPadding ->
         when (selectedItemIndex) {
             0 -> Text("Ontdekken Scherm", modifier = Modifier.padding(innerPadding))
-            1 -> Text("Kaart Scherm", modifier = Modifier.padding(innerPadding))
+            1 -> MapScreen(modifier = Modifier.padding(innerPadding))
             2 -> Text("Toevoegen Scherm", modifier = Modifier.padding(innerPadding))
             3 -> ProfileScreen(
                 navController = navController,
