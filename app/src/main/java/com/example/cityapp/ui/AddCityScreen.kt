@@ -1,11 +1,13 @@
 package com.example.cityapp.ui
 
+import City
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -255,12 +257,16 @@ fun ImagePicker(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Color(0xFFF4F5F6))
+            .border(
+                width = 2.dp,
+                color = if (selectedImageUri != null) MaterialTheme.colorScheme.primary else Color.Gray,
+                shape = RoundedCornerShape(16.dp)
+            )
             .clickable { launcher.launch("image/*") },
         contentAlignment = Alignment.Center
     ) {
         if (selectedImageUri != null) {
             Image(
-                // --- HIER WAS DE TYPFOUT ---
                 painter = rememberAsyncImagePainter(selectedImageUri),
                 contentDescription = "Geselecteerde afbeelding",
                 modifier = Modifier.fillMaxSize(),
