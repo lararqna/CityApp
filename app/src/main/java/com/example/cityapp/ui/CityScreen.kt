@@ -1,5 +1,6 @@
 package com.example.cityapp.ui
 
+import City
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,36 +10,33 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import org.osmdroid.util.GeoPoint
 
 @Composable
 fun CityScreen(modifier: Modifier = Modifier) {
-    val userLocation = org.osmdroid.util.GeoPoint(51.2303, 4.4161)
+    val userLocation = GeoPoint(51.2303, 4.4161)
     var selectedCity by remember { mutableStateOf<City?>(null) }
-    var showAddCityForm by remember { mutableStateOf(false) } // <-- NIEUWE STATE
+    var showAddCityForm by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     val db = Firebase.firestore
-    val defaultCities = sampleCities()
-    var cities by remember { mutableStateOf(defaultCities) }
+    var cities by remember { mutableStateOf<List<City>>(emptyList()) }
 
-    // Deze key zorgt ervoor dat de data opnieuw wordt geladen als we terugkomen van het toevoeg-scherm
+    // Herladen van Firestore wanneer AddCityScreen sluit
     val refreshKey by rememberUpdatedState(showAddCityForm)
 
     LaunchedEffect(refreshKey) {
-        if (!showAddCityForm) { // Alleen herladen als het formulier gesloten is
+        if (!showAddCityForm) {
             db.collection("cities")
                 .get()
                 .addOnSuccessListener { result ->
-                    val firebaseCities = result.documents.mapNotNull { it.toObject(City::class.java) }
-                    cities = (defaultCities + firebaseCities).distinctBy { it.name }
+                    cities = result.documents.mapNotNull { it.toObject(City::class.java) }
                 }
         }
     }
@@ -47,22 +45,23 @@ fun CityScreen(modifier: Modifier = Modifier) {
         it.name.contains(searchQuery, ignoreCase = true)
     }
 
-    // --- UI LOGICA ---
     when {
         showAddCityForm -> {
             AddCityScreen { showAddCityForm = false }
         }
+
         selectedCity != null -> {
             CityDetailScreen(city = selectedCity!!, userLocation = userLocation) {
                 selectedCity = null
             }
         }
+
         else -> {
             Scaffold(
                 modifier = modifier,
                 floatingActionButton = {
                     FloatingActionButton(
-                        onClick = { showAddCityForm = true }, // <-- Update de state hier
+                        onClick = { showAddCityForm = true },
                         shape = CircleShape,
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White
@@ -102,11 +101,9 @@ fun CityScreen(modifier: Modifier = Modifier) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(filteredCities) { city ->
-                            val distanceText = "${calculateDistanceKm(userLocation, org.osmdroid.util.GeoPoint(city.latitude, city.longitude))} km"
+                            val distanceText = "${calculateDistanceKm(userLocation, GeoPoint(city.latitude, city.longitude))} km"
                             CityCard(city, distanceText) {
                                 selectedCity = city
                             }
@@ -117,10 +114,3 @@ fun CityScreen(modifier: Modifier = Modifier) {
         }
     }
 }
-
-
-fun sampleCities() = listOf(
-    City("Antwerpen", "https://cdn.pixabay.com/photo/2016/01/19/17/37/antwerp-1151143_1280.jpg", 51.2194, 4.4025),
-    City("Leuven", "https://cdn.pixabay.com/photo/2017/03/14/08/09/leuven-2148647_1280.jpg", 50.8798, 4.7005),
-    City("Amsterdam", "https://cdn.pixabay.com/photo/2016/11/29/04/17/amsterdam-1866781_1280.jpg", 52.3676, 4.9041)
-)

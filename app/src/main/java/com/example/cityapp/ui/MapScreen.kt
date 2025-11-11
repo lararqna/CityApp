@@ -1,7 +1,8 @@
 package com.example.cityapp.ui
 
+import City
 import android.annotation.SuppressLint
-import android.view.View
+import com.example.cityapp.R
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,6 +21,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,13 +43,6 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import kotlin.math.*
 
-data class City(
-    val name: String = "",
-    val imageUrl: String = "",
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0
-)
-
 data class Attraction(
     val name: String,
     val category: String,
@@ -61,64 +57,67 @@ data class Attraction(
 fun MapScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val db = Firebase.firestore
-
-    // vaste locatie (AP Hogeschool)
     val userLocation = GeoPoint(51.2303, 4.4161)
 
-    // ardcoded lokale steden
-    val defaultCities = listOf(
-        City("Antwerpen", "https://cdn.pixabay.com/photo/2016/01/19/17/37/antwerp-1151143_1280.jpg", 51.2194, 4.4025),
-        City("Leuven", "https://cdn.pixabay.com/photo/2017/03/14/08/09/leuven-2148647_1280.jpg", 50.8798, 4.7005),
-        City("Amsterdam", "https://cdn.pixabay.com/photo/2016/11/29/04/17/amsterdam-1866781_1280.jpg", 52.3676, 4.9041)
-    )
-
-    var cities by remember { mutableStateOf(defaultCities) }
-
-    LaunchedEffect(Unit) {
-        db.collection("cities")
-            .get()
-            .addOnSuccessListener { result ->
-                val firebaseCities = result.documents.mapNotNull { it.toObject(City::class.java) }
-                cities = defaultCities + firebaseCities
-            }
-    }
-
+    var cities by remember { mutableStateOf<List<City>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     val filteredCities = cities.filter { it.name.contains(searchQuery, ignoreCase = true) }
 
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(true) }
     val sheetHeight by animateDpAsState(targetValue = if (expanded) 550.dp else 90.dp)
-
     var selectedCity by remember { mutableStateOf<City?>(null) }
 
     if (selectedCity != null) {
         CityDetailScreen(city = selectedCity!!, userLocation = userLocation) {
             selectedCity = null
         }
-    } else {
+    }
+    else {
         val mapView = remember {
             MapView(context).apply {
                 setTileSource(TileSourceFactory.MAPNIK)
-                controller.setZoom(19.0)
-                controller.setCenter(userLocation)
+                controller.setZoom(15.0)
+                val centeredPoint = GeoPoint(userLocation.latitude - 0.02, userLocation.longitude)
+                controller.setCenter(centeredPoint)
                 setMultiTouchControls(true)
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                isTilesScaledToDpi = true
                 overlays.clear()
-                val marker = Marker(this).apply {
+
+                val userMarker = Marker(this).apply {
                     position = userLocation
-                    icon = context.getDrawable(android.R.drawable.presence_online)
+                    icon = context.getDrawable(R.drawable.ic_own_location)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                     infoWindow = null
                 }
-                overlays.add(marker)
+                overlays.add(userMarker)
             }
         }
 
+        LaunchedEffect(Unit) {
+            db.collection("cities")
+                .get()
+                .addOnSuccessListener { result ->
+                    val firebaseCities = result.documents.mapNotNull { it.toObject(City::class.java) }
+                    cities = firebaseCities
+
+                    for (city in firebaseCities) {
+                        val cityMarker = Marker(mapView).apply {
+                            position = GeoPoint(city.latitude, city.longitude)
+                            title = city.name
+                            icon = context.getDrawable(R.drawable.ic_location_pin)
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            setOnMarkerClickListener { _, _ ->
+                                selectedCity = city
+                                true 
+                            }
+                        }
+                        mapView.overlays.add(cityMarker)
+                    }
+                    mapView.invalidate()
+                }
+        }
+
         Box(modifier = Modifier.fillMaxSize()) {
-
             AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
-
             Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -129,19 +128,6 @@ fun MapScreen(modifier: Modifier = Modifier) {
                 ZoomButton("+") { mapView.controller.zoomIn() }
                 ZoomButton("–") { mapView.controller.zoomOut() }
             }
-
-//            FloatingActionButton(
-//                onClick = {//todo
-//                },
-//                shape = CircleShape,
-//                containerColor = Color(0xFF9BE180),
-//                modifier = Modifier
-//                    .align(Alignment.BottomEnd)
-//                    .padding(bottom = 170.dp, end = 24.dp)
-//                    .zIndex(3f)
-//            ) {
-//                Icon(Icons.Default.Add, contentDescription = "Add Location", tint = Color.White)
-//            }
 
             Box(
                 modifier = Modifier
@@ -199,6 +185,7 @@ fun MapScreen(modifier: Modifier = Modifier) {
                                     "${calculateDistanceKm(userLocation, GeoPoint(city.latitude, city.longitude))} km"
                                 CityCard(city, distanceText) {
                                     expanded = false
+                                    // Animate to city location and select it
                                     mapView.controller.animateTo(GeoPoint(city.latitude, city.longitude))
                                     selectedCity = city
                                 }
@@ -224,7 +211,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
             overlays.clear()
             val marker = Marker(this).apply {
                 position = GeoPoint(city.latitude, city.longitude)
-                icon = context.getDrawable(android.R.drawable.presence_online)
+                icon = context.getDrawable(R.drawable.ic_location_pin)
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             }
             overlays.add(marker)
@@ -233,16 +220,16 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
 
     val attractions = when (city.name) {
         "Antwerpen" -> listOf(
-            Attraction("Kathedraal van Antwerpen", "Cultuur", "https://cdn.pixabay.com/photo/2015/07/17/09/25/antwerp-cathedral-849030_1280.jpg", 51.2206, 4.4009),
-            Attraction("Grote Markt", "Historisch", "https://cdn.pixabay.com/photo/2018/03/23/13/30/antwerp-3252634_1280.jpg", 51.2212, 4.3997)
+            Attraction("Kathedraal van Antwerpen", "Cultuur", "https://assets.antwerpen.be/srv/assets/api/image/1ee41d36-f4bb-4125-9a27-553c75ed8fc0/CAGM_olv_vooraanzicht.jpg", 51.2206, 4.4009),
+            Attraction("Grote Markt", "Historisch", "https://www.stedentrippers.nl/wp-content/uploads/2022/04/de-grote-markt-in-antwerpen.jpg", 51.2212, 4.3997)
         )
         "Leuven" -> listOf(
-            Attraction("Stadhuis van Leuven", "Historisch", "https://cdn.pixabay.com/photo/2017/03/14/08/09/leuven-2148647_1280.jpg", 50.8799, 4.7005),
-            Attraction("Oude Markt", "Eten & Drinken", "https://cdn.pixabay.com/photo/2015/09/30/18/36/leuven-965070_1280.jpg", 50.8788, 4.7012)
+            Attraction("Stadhuis van Leuven", "Historisch", "https://img.static-rmg.be/a/view/q75/w618/h397/5430316/4b9161ed7fa27e73a8618718ee5e2190-jpg.jpg", 50.8799, 4.7005),
+            Attraction("Oude Markt", "Eten & Drinken", "https://cdn.shopify.com/s/files/1/0501/6751/3239/files/BF842046-8E4C-49C8-BEFB-8BC332AD3B76-FE25F89A-D01E-41A2-A2BE-BEB41F3FA9A6_2_1024x1024.jpg?v=1666087226", 50.8788, 4.7012)
         )
         "Amsterdam" -> listOf(
-            Attraction("Rijksmuseum", "Cultuur", "https://cdn.pixabay.com/photo/2016/04/15/11/46/rijksmuseum-1331322_1280.jpg", 52.3599, 4.8852),
-            Attraction("RAI Hotel", "Verblijf", "https://cdn.pixabay.com/photo/2017/06/07/18/17/amsterdam-2380404_1280.jpg", 52.3441, 4.8925)
+            Attraction("Rijksmuseum", "Cultuur", "https://cdn-imgix.headout.com/media/images/a4d93bc58c9528951ed3124f77d268e4-544-amsterdam-003-amsterdam-%7C-rijksmuseum-02.jpg", 52.3599, 4.8852),
+            Attraction("RAI Hotel", "Verblijf", "https://www.qurails.nl/wp-content/uploads/2022/04/Nhow-bewerkt2-min.jpg", 52.3441, 4.8925)
         )
         else -> emptyList()
     }
