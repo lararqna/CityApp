@@ -3,12 +3,12 @@ package com.example.cityapp.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material.icons.outlined.Apartment
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,7 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
-import com.example.cityapp.ui.MapScreen
+import com.google.firebase.firestore.GeoPoint
 
 data class BottomNavItem(
     val label: String,
@@ -42,7 +42,7 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
             label = "Steden",
             selectedIcon = Icons.Filled.Apartment,
             unselectedIcon = Icons.Outlined.Apartment,
-            route = "apartment"
+            route = "cities"
         ),
         BottomNavItem(
             label = "Kaart",
@@ -51,10 +51,10 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
             route = "map"
         ),
         BottomNavItem(
-            label = "Toevoegen",
-            selectedIcon = Icons.Filled.AddCircle,
-            unselectedIcon = Icons.Outlined.AddCircleOutline,
-            route = "add_location"
+            label = "Inbox",
+            selectedIcon = Icons.Filled.ChatBubbleOutline,
+            unselectedIcon = Icons.Outlined.ChatBubbleOutline,
+            route = "inbox"
         ),
         BottomNavItem(
             label = "Profiel",
@@ -68,7 +68,9 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            NavigationBar (
+                containerColor = androidx.compose.ui.graphics.Color.White
+            ){
                 items.forEachIndexed { index, item ->
                     NavigationBarItem(
                         selected = selectedItemIndex == index,
@@ -96,10 +98,11 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
             }
         }
     ) { innerPadding ->
+
         when (selectedItemIndex) {
-            0 -> Text("Ontdekken Scherm", modifier = Modifier.padding(innerPadding))
+            0 -> CityScreen(modifier = Modifier.padding(innerPadding))
             1 -> MapScreen(modifier = Modifier.padding(innerPadding))
-            2 -> Text("Toevoegen Scherm", modifier = Modifier.padding(innerPadding))
+            2 -> Text("Chatbox Scherm", modifier = Modifier.padding(innerPadding))
             3 -> ProfileScreen(
                 navController = navController,
                 auth = auth,
