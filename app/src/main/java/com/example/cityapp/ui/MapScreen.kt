@@ -235,20 +235,20 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     }
 
     var search by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("Alles") }
-    val categories = listOf("Alles", "Eten & Drinken", "Cultuur", "Winkelen", "Verblijf")
 
-    val filtered = attractions.filter {
-        (selectedCategory == "Alles" || it.category == selectedCategory) &&
-                it.name.contains(search, ignoreCase = true)
+    var selectedCategories by remember { mutableStateOf(setOf("Alles")) }
+    val categories = listOf("Alles", "Eten & Drinken", "Cultuur", "Winkelen", "Verblijf", "Historisch")
+    val filteredAttractions = attractions.filter { attraction ->
+        val searchMatch = attraction.name.contains(search, ignoreCase = true)
+        val categoryMatch = selectedCategories.contains("Alles") || selectedCategories.contains(attraction.category)
+        searchMatch && categoryMatch
     }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = {//todo
-                    },
+                    onClick = { /*TODO*/ },
                     shape = CircleShape,
                     containerColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
@@ -298,11 +298,30 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                     Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(categories) { cat ->
+                    items(categories) { category ->
                         FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
-                            label = { Text(cat) },
+                            selected = selectedCategories.contains(category),
+                            onClick = {
+                                val currentSelection = selectedCategories.toMutableSet()
+                                if (category == "Alles") {
+                                    currentSelection.clear()
+                                    currentSelection.add("Alles")
+                                } else {
+                                    currentSelection.remove("Alles")
+
+                                    if (currentSelection.contains(category)) {
+                                        currentSelection.remove(category)
+                                    } else {
+                                        currentSelection.add(category)
+                                    }
+
+                                    if (currentSelection.isEmpty()){
+                                        currentSelection.add("Alles")
+                                    }
+                                }
+                                selectedCategories = currentSelection
+                            },
+                            label = { Text(category) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
                                 selectedLabelColor = Color.White
@@ -333,7 +352,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                 }
 
                 LazyColumn(Modifier.padding(16.dp)) {
-                    items(filtered) { attr ->
+                    items(filteredAttractions) { attr ->
                         val distance = calculateDistanceKm(userLocation, GeoPoint(attr.latitude, attr.longitude))
                         Card(
                             Modifier
@@ -365,6 +384,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         }
     }
 }
+
 
 @Composable
 fun ZoomButton(label: String, onClick: () -> Unit) {

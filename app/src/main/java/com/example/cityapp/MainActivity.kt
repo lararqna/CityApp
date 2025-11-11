@@ -39,7 +39,7 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val auth = Firebase.auth
 
-    NavHost(navController = navController, startDestination = "home") {
+    NavHost(navController = navController, startDestination = "login") {
 
         composable("register") {
             RegisterScreen(navController = navController, auth = auth)
