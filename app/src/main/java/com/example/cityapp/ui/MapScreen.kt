@@ -1,13 +1,13 @@
 package com.example.cityapp.ui
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.view.View
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.forEachGesture
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -34,8 +34,6 @@ import androidx.compose.ui.zIndex
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.launch
-import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -89,7 +87,7 @@ fun MapScreen(modifier: Modifier = Modifier) {
     val filteredCities = cities.filter { it.name.contains(searchQuery, ignoreCase = true) }
 
     var expanded by remember { mutableStateOf(false) }
-    val sheetHeight by animateDpAsState(targetValue = if (expanded) 450.dp else 90.dp)
+    val sheetHeight by animateDpAsState(targetValue = if (expanded) 550.dp else 90.dp)
 
     var selectedCity by remember { mutableStateOf<City?>(null) }
 
@@ -132,18 +130,18 @@ fun MapScreen(modifier: Modifier = Modifier) {
                 ZoomButton("–") { mapView.controller.zoomOut() }
             }
 
-            FloatingActionButton(
-                onClick = {//todo
-                },
-                shape = CircleShape,
-                containerColor = Color(0xFF9BE180),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 170.dp, end = 24.dp)
-                    .zIndex(3f)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Location", tint = Color.White)
-            }
+//            FloatingActionButton(
+//                onClick = {//todo
+//                },
+//                shape = CircleShape,
+//                containerColor = Color(0xFF9BE180),
+//                modifier = Modifier
+//                    .align(Alignment.BottomEnd)
+//                    .padding(bottom = 170.dp, end = 24.dp)
+//                    .zIndex(3f)
+//            ) {
+//                Icon(Icons.Default.Add, contentDescription = "Add Location", tint = Color.White)
+//            }
 
             Box(
                 modifier = Modifier
@@ -217,6 +215,7 @@ fun MapScreen(modifier: Modifier = Modifier) {
 fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     val context = LocalContext.current
     val mapView = remember {
+        org.osmdroid.config.Configuration.getInstance().load(context, context.getSharedPreferences("osm", 0))
         MapView(context).apply {
             setTileSource(TileSourceFactory.MAPNIK)
             controller.setZoom(13.0)
@@ -264,7 +263,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                     onClick = {//todo
                     },
                     shape = CircleShape,
-                    containerColor = Color(0xFF9BE180),
+                    containerColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(bottom = 90.dp, end = 12.dp)
@@ -316,7 +315,11 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                         FilterChip(
                             selected = selectedCategory == cat,
                             onClick = { selectedCategory = cat },
-                            label = { Text(cat) }
+                            label = { Text(cat) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = Color.White
+                            )
                         )
                     }
                 }
@@ -327,7 +330,19 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                         .height(150.dp)
                         .clip(RoundedCornerShape(16.dp))
                 ) {
-                    AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+                    AndroidView(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                forEachGesture {
+                                    awaitPointerEventScope {
+                                        awaitPointerEvent()
+                                        currentEvent.changes.forEach { it.consume() }
+                                    }
+                                }
+                            },
+                        factory = { mapView },
+                    )
                 }
 
                 LazyColumn(Modifier.padding(16.dp)) {
