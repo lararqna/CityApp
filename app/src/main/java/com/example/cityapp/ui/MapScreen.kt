@@ -2,6 +2,7 @@ package com.example.cityapp.ui
 
 import City
 import android.annotation.SuppressLint
+import android.view.View
 import com.example.cityapp.R
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
@@ -76,10 +77,11 @@ fun MapScreen(modifier: Modifier = Modifier) {
         val mapView = remember {
             MapView(context).apply {
                 setTileSource(TileSourceFactory.MAPNIK)
-                controller.setZoom(15.0)
-                val centeredPoint = GeoPoint(userLocation.latitude - 0.02, userLocation.longitude)
-                controller.setCenter(centeredPoint)
+                controller.setZoom(19.0)
+                controller.setCenter(userLocation)
                 setMultiTouchControls(true)
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                isTilesScaledToDpi = true
                 overlays.clear()
 
                 val userMarker = Marker(this).apply {
