@@ -2,6 +2,7 @@ package com.example.cityapp.ui
 
 import City
 import android.net.Uri
+import android.view.View
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,34 +61,40 @@ fun AddCityScreen(onBack: () -> Unit) {
     fun uploadImageAndSaveCity(imageUri: Uri, location: GeoPoint) {
         isLoading = true
         val storageRef = storage.reference.child("city_images/${UUID.randomUUID()}.jpg")
-        val uploadTask = storageRef.putFile(imageUri)
 
-        uploadTask.continueWithTask { task ->
-            if (!task.isSuccessful) task.exception?.let { throw it }
-            storageRef.downloadUrl
-        }.addOnCompleteListener { task ->
-            isLoading = false
-            if (task.isSuccessful) {
-                val downloadUri = task.result
-                val newCity = City(
-                    name = cityName,
-                    imageUrl = downloadUri.toString(),
-                    latitude = location.latitude,
-                    longitude = location.longitude
+        storageRef.putFile(imageUri)
+            .continueWithTask { storageRef.downloadUrl }
+            .addOnSuccessListener { downloadUri ->
+
+                val cityId = db.collection("cities").document().id
+
+                val newCity = mapOf(
+                    "id" to cityId,
+                    "name" to cityName,
+                    "imageUrl" to downloadUri.toString(),
+                    "latitude" to location.latitude,
+                    "longitude" to location.longitude
                 )
-                db.collection("cities").add(newCity)
+
+                db.collection("cities")
+                    .document(cityId)
+                    .set(newCity)
                     .addOnSuccessListener {
+                        isLoading = false
                         Toast.makeText(context, "Stad toegevoegd!", Toast.LENGTH_SHORT).show()
                         onBack()
                     }
-                    .addOnFailureListener { e ->
-                        Toast.makeText(context, "Fout bij opslaan: ${e.message}", Toast.LENGTH_LONG).show()
+                    .addOnFailureListener {
+                        isLoading = false
+                        Toast.makeText(context, "Firestore fout: ${it.message}", Toast.LENGTH_LONG).show()
                     }
-            } else {
-                Toast.makeText(context, "Fout bij uploaden: ${task.exception?.message}", Toast.LENGTH_LONG).show()
             }
-        }
+            .addOnFailureListener {
+                isLoading = false
+                Toast.makeText(context, "Upload fout: ${it.message}", Toast.LENGTH_LONG).show()
+            }
     }
+
 
     Scaffold(
         topBar = {
@@ -186,13 +193,15 @@ fun LocationPickerMap(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val mapView = remember {
-        // AANPASSING 2: Juiste Configuration gebruiken (van osmdroid)
         org.osmdroid.config.Configuration.getInstance().load(context, context.getSharedPreferences("osm", 0))
         MapView(context).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
-            setMultiTouchControls(true)
-            controller.setZoom(12.0)
             controller.setCenter(GeoPoint(51.2194, 4.4025))
+            setTileSource(TileSourceFactory.MAPNIK)
+            controller.setZoom(12.0)
+            setMultiTouchControls(true)
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            isTilesScaledToDpi = true
+            overlays.clear()
         }
     }
 

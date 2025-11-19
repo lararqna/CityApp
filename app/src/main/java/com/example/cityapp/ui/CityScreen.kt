@@ -28,7 +28,6 @@ fun CityScreen(modifier: Modifier = Modifier) {
     val db = Firebase.firestore
     var cities by remember { mutableStateOf<List<City>>(emptyList()) }
 
-    // Herladen van Firestore wanneer AddCityScreen sluit
     val refreshKey by rememberUpdatedState(showAddCityForm)
 
     LaunchedEffect(refreshKey) {
@@ -36,7 +35,15 @@ fun CityScreen(modifier: Modifier = Modifier) {
             db.collection("cities")
                 .get()
                 .addOnSuccessListener { result ->
-                    cities = result.documents.mapNotNull { it.toObject(City::class.java) }
+                    cities = result.documents.map { doc ->
+                        City(
+                            id = doc.id,
+                            name = doc.getString("name") ?: "",
+                            imageUrl = doc.getString("imageUrl") ?: "",
+                            latitude = doc.getDouble("latitude") ?: 0.0,
+                            longitude = doc.getDouble("longitude") ?: 0.0
+                        )
+                    }
                 }
         }
     }

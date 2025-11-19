@@ -1,6 +1,7 @@
 package com.example.cityapp.ui
 
 import City
+import Location
 import android.annotation.SuppressLint
 import android.view.View
 import com.example.cityapp.R
@@ -98,7 +99,15 @@ fun MapScreen(modifier: Modifier = Modifier) {
             db.collection("cities")
                 .get()
                 .addOnSuccessListener { result ->
-                    val firebaseCities = result.documents.mapNotNull { it.toObject(City::class.java) }
+                    val firebaseCities = result.documents.map { doc ->
+                        City(
+                            id = doc.id,
+                            name = doc.getString("name") ?: "",
+                            imageUrl = doc.getString("imageUrl") ?: "",
+                            latitude = doc.getDouble("latitude") ?: 0.0,
+                            longitude = doc.getDouble("longitude") ?: 0.0
+                        )
+                    }
                     cities = firebaseCities
 
                     for (city in firebaseCities) {
@@ -206,10 +215,13 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     val mapView = remember {
         org.osmdroid.config.Configuration.getInstance().load(context, context.getSharedPreferences("osm", 0))
         MapView(context).apply {
+
             setTileSource(TileSourceFactory.MAPNIK)
             controller.setZoom(13.0)
             controller.setCenter(GeoPoint(city.latitude, city.longitude))
             setMultiTouchControls(true)
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            isTilesScaledToDpi = true
             overlays.clear()
             val marker = Marker(this).apply {
                 position = GeoPoint(city.latitude, city.longitude)
@@ -220,21 +232,79 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         }
     }
 
-    val attractions = when (city.name) {
+    var firebaseLocations by remember { mutableStateOf<List<Location>>(emptyList()) }
+    val db = Firebase.firestore
+
+    LaunchedEffect(city.id) {
+        if (city.id != null) {
+            db.collection("cities")
+                .document(city.id!!)
+                .collection("locations")
+                .get()
+                .addOnSuccessListener { result ->
+                    firebaseLocations = result.documents.mapNotNull { it.toObject(Location::class.java) }
+                }
+        }
+    }
+
+    val hardcoded = when (city.name) {
         "Antwerpen" -> listOf(
-            Attraction("Kathedraal van Antwerpen", "Cultuur", "https://assets.antwerpen.be/srv/assets/api/image/1ee41d36-f4bb-4125-9a27-553c75ed8fc0/CAGM_olv_vooraanzicht.jpg", 51.2206, 4.4009),
-            Attraction("Grote Markt", "Historisch", "https://www.stedentrippers.nl/wp-content/uploads/2022/04/de-grote-markt-in-antwerpen.jpg", 51.2212, 4.3997)
+            Attraction("Kathedraal van Antwerpen", "Cultuur",
+                "https://assets.antwerpen.be/srv/assets/api/image/1ee41d36-f4bb-4125-9a27-553c75ed8fc0/CAGM_olv_vooraanzicht.jpg",
+                51.2206, 4.4009
+            ),
+            Attraction("Grote Markt", "Historisch",
+                "https://www.stedentrippers.nl/wp-content/uploads/2022/04/de-grote-markt-in-antwerpen.jpg",
+                51.2212, 4.3997
+            )
         )
+
         "Leuven" -> listOf(
-            Attraction("Stadhuis van Leuven", "Historisch", "https://img.static-rmg.be/a/view/q75/w618/h397/5430316/4b9161ed7fa27e73a8618718ee5e2190-jpg.jpg", 50.8799, 4.7005),
-            Attraction("Oude Markt", "Eten & Drinken", "https://cdn.shopify.com/s/files/1/0501/6751/3239/files/BF842046-8E4C-49C8-BEFB-8BC332AD3B76-FE25F89A-D01E-41A2-A2BE-BEB41F3FA9A6_2_1024x1024.jpg?v=1666087226", 50.8788, 4.7012)
+            Attraction("Stadhuis van Leuven", "Historisch",
+                "https://img.static-rmg.be/a/view/q75/w618/h397/5430316/4b9161ed7fa27e73a8618718ee5e2190-jpg.jpg",
+                50.8799, 4.7005
+            ),
+            Attraction("Oude Markt", "Eten & Drinken",
+                "https://cdn.shopify.com/s/files/1/0501/6751/3239/files/BF842046-8E4C-49C8-BEFB-8BC332AD3B76-FE25F89A-D01E-41A2-A2BE-BEB41F3FA9A6_2_1024x1024.jpg?v=1666087226",
+                50.8788, 4.7012
+            )
         )
+
         "Amsterdam" -> listOf(
-            Attraction("Rijksmuseum", "Cultuur", "https://cdn-imgix.headout.com/media/images/a4d93bc58c9528951ed3124f77d268e4-544-amsterdam-003-amsterdam-%7C-rijksmuseum-02.jpg", 52.3599, 4.8852),
-            Attraction("RAI Hotel", "Verblijf", "https://www.qurails.nl/wp-content/uploads/2022/04/Nhow-bewerkt2-min.jpg", 52.3441, 4.8925)
+            Attraction("Rijksmuseum", "Cultuur",
+                "https://cdn-imgix.headout.com/media/images/a4d93bc58c9528951ed3124f77d268e4-544-amsterdam-003-amsterdam-%7C-rijksmuseum-02.jpg",
+                52.3599, 4.8852
+            ),
+            Attraction("RAI Hotel", "Verblijf",
+                "https://www.qurails.nl/wp-content/uploads/2022/04/Nhow-bewerkt2-min.jpg",
+                52.3441, 4.8925
+            )
         )
+
         else -> emptyList()
     }
+
+    val attractions = hardcoded + firebaseLocations.map {
+        Attraction(
+            name = it.name,
+            category = it.category,
+            imageUrl = it.imageUrl ?: "",
+            latitude = it.latitude,
+            longitude = it.longitude
+        )
+    }
+
+    for (loc in firebaseLocations) {
+        val marker = Marker(mapView).apply {
+            position = GeoPoint(loc.latitude, loc.longitude)
+            title = loc.name
+            icon = context.getDrawable(R.drawable.ic_location_pin)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        }
+        mapView.overlays.add(marker)
+    }
+    mapView.invalidate()
+
 
     var search by remember { mutableStateOf("") }
 
@@ -246,11 +316,21 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         searchMatch && categoryMatch
     }
 
+    var showAddLocation by remember { mutableStateOf(false) }
+
+    if (showAddLocation) {
+        AddLocationScreen(
+            city = city,
+            onCancel = { showAddLocation = false }
+        )
+        return
+    }
+
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = { /*TODO*/ },
+                    onClick = { showAddLocation = true },
                     shape = CircleShape,
                     containerColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
