@@ -7,4 +7,13 @@ data class Location(
     val imageUrl: String,
     val latitude: Double,
     val longitude: Double
-)
+){
+    constructor() : this(
+        id = "",
+        name = "",
+        category = "",
+        imageUrl = "",
+        latitude = 0.0,
+        longitude = 0.0
+    )
+}
