@@ -70,7 +70,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
             isTilesScaledToDpi = true
             overlays.clear()
-            // Marker voor de stad zelf
+
             val cityMarker = Marker(this).apply {
                 position = GeoPoint(city.latitude, city.longitude)
                 icon = context.getDrawable(R.drawable.ic_location_pin)
@@ -249,16 +249,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                         .clip(RoundedCornerShape(16.dp))
                 ) {
                     AndroidView(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                forEachGesture {
-                                    awaitPointerEventScope {
-                                        awaitPointerEvent()
-                                        currentEvent.changes.forEach { it.consume() }
-                                    }
-                                }
-                            },
+                        modifier = Modifier.fillMaxSize(),
                         factory = { mapView },
                     )
                 }
