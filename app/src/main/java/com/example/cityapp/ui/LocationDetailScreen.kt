@@ -1,5 +1,6 @@
 package com.example.cityapp.ui
 
+import Review
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
+import com.example.cityapp.models.Location
 import com.example.cityapp.models.User
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
@@ -35,18 +37,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 import org.osmdroid.util.GeoPoint
 import kotlin.math.*
-data class Review(
-    val userId: String = "",
-    val username: String = "",
-    val rating: Float = 0f,
-    val text: String = "",
-    val timestamp: Timestamp = Timestamp.now()
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationDetailScreen(
-    attraction: Attraction,
+    location: Location,
     onBack: () -> Unit,
     userLocation: GeoPoint?,
     modifier: Modifier = Modifier
@@ -62,8 +57,8 @@ fun LocationDetailScreen(
     var currentUserData by remember { mutableStateOf<User?>(null) }
 
 
-    LaunchedEffect(attraction.id) {
-        db.collection("attractions").document(attraction.id)
+    LaunchedEffect(location.id) {
+        db.collection("attractions").document(location.id)
             .collection("reviews")
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, _ ->
@@ -105,7 +100,7 @@ fun LocationDetailScreen(
             timestamp = Timestamp.now()
         )
 
-        db.collection("attractions").document(attraction.id)
+        db.collection("attractions").document(location.id)
             .collection("reviews").add(newReview)
             .addOnSuccessListener {
                 myReviewText = ""
@@ -122,7 +117,7 @@ fun LocationDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(attraction.name) },
+                title = { Text(location.name) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Terug")
@@ -139,8 +134,8 @@ fun LocationDetailScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Image(
-                painter = rememberAsyncImagePainter(attraction.imageUrl),
-                contentDescription = attraction.name,
+                painter = rememberAsyncImagePainter(location.imageUrl),
+                contentDescription = location.name,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(240.dp),
@@ -152,7 +147,7 @@ fun LocationDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = attraction.name,
+                    text = location.name,
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -209,7 +204,7 @@ fun LocationDetailScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = calculateDistanceKm(userLocation, GeoPoint(attraction.latitude, attraction.longitude)),
+                            text = calculateDistanceKm(userLocation, GeoPoint(location.latitude, location.longitude)),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary

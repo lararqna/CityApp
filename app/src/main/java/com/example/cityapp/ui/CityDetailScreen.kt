@@ -3,7 +3,6 @@ package com.example.cityapp.ui
 import City
 import android.view.View
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.forEachGesture
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -31,23 +29,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import coil.compose.rememberAsyncImagePainter
 import com.example.cityapp.R
+import com.example.cityapp.models.Location
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import kotlin.math.*
 
 
-data class Attraction(
-    val id: String = "",
-    val name: String,
-    val category: String,
-    val imageUrl: String,
-    val latitude: Double,
-    val longitude: Double
-)
+
 
 data class Location(
     val name: String = "",
@@ -81,7 +72,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     }
 
 
-    var attractions by remember { mutableStateOf<List<Attraction>>(emptyList()) }
+    var locations by remember { mutableStateOf<List<Location>>(emptyList()) }
     val db = Firebase.firestore
 
 
@@ -92,9 +83,9 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                 .collection("locations")
                 .get()
                 .addOnSuccessListener { result ->
-                    attractions = result.documents.mapNotNull { doc ->
+                    locations = result.documents.mapNotNull { doc ->
                         doc.toObject(Location::class.java)?.let { loc ->
-                            Attraction(
+                            Location(
                                 id = doc.id,
                                 name = loc.name,
                                 category = loc.category,
@@ -108,11 +99,11 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(attractions) {
+    LaunchedEffect(locations) {
         val cityGeoPoint = GeoPoint(city.latitude, city.longitude)
         mapView.overlays.removeAll { it is Marker && it.position != cityGeoPoint }
 
-        for (attr in attractions) {
+        for (attr in locations) {
             val marker = Marker(mapView).apply {
                 position = GeoPoint(attr.latitude, attr.longitude)
                 title = attr.name
@@ -127,25 +118,25 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     var search by remember { mutableStateOf("") }
     var selectedCategories by remember { mutableStateOf(setOf("Alles")) }
 
-    val categories = remember(attractions) {
-        listOf("Alles") + attractions.map { it.category }.distinct().sorted()
+    val categories = remember(locations) {
+        listOf("Alles") + locations.map { it.category }.distinct().sorted()
     }
 
-    val filteredAttractions = attractions.filter { attraction ->
-        val searchMatch = attraction.name.contains(search, ignoreCase = true)
-        val categoryMatch = selectedCategories.contains("Alles") || selectedCategories.contains(attraction.category)
+    val filteredLocations= locations.filter { location ->
+        val searchMatch = location.name.contains(search, ignoreCase = true)
+        val categoryMatch = selectedCategories.contains("Alles") || selectedCategories.contains(location.category)
         searchMatch && categoryMatch
     }
 
 
-    var selectedAttraction by remember { mutableStateOf<Attraction?>(null) }
+    var selectedLocation by remember { mutableStateOf<Location?>(null) }
     var showAddLocation by remember { mutableStateOf(false) }
 
-    if (selectedAttraction != null) {
+    if (selectedLocation != null) {
         LocationDetailScreen(
-            attraction = selectedAttraction!!,
+            location = selectedLocation!!,
             userLocation = userLocation,
-            onBack = { selectedAttraction = null }
+            onBack = { selectedLocation = null }
         )
         return
     }
@@ -255,10 +246,10 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                 }
 
                 LazyColumn(Modifier.padding(16.dp)) {
-                    items(filteredAttractions) { attr ->
-                        val distance = calculateDistanceKm(userLocation, GeoPoint(attr.latitude, attr.longitude))
+                    items(locations) { location ->
+                        val distance = calculateDistanceKm(userLocation, GeoPoint(location.latitude, location.longitude))
                         Card(
-                            onClick = { selectedAttraction = attr },
+                            onClick = { selectedLocation = location },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp),
@@ -268,8 +259,8 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                         ) {
                             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Image(
-                                    painter = rememberAsyncImagePainter(attr.imageUrl),
-                                    contentDescription = attr.name,
+                                    painter = rememberAsyncImagePainter(location.imageUrl),
+                                    contentDescription = location.name,
                                     modifier = Modifier
                                         .size(70.dp)
                                         .clip(RoundedCornerShape(10.dp)),
@@ -277,8 +268,8 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                                 )
                                 Spacer(Modifier.width(12.dp))
                                 Column {
-                                    Text(attr.name, fontWeight = FontWeight.Bold)
-                                    Text("${attr.category} • $distance km", color = Color.Gray)
+                                    Text(location.name, fontWeight = FontWeight.Bold)
+                                    Text("${location.category} • $distance km", color = Color.Gray)
                                 }
                             }
                         }
