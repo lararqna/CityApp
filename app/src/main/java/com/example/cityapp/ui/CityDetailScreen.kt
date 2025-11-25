@@ -1,6 +1,6 @@
 package com.example.cityapp.ui
 
-import City
+import com.example.cityapp.models.City
 import android.view.View
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -45,6 +45,8 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     var selectedLocation by remember { mutableStateOf<Location?>(null) }
     var showAddLocation by remember { mutableStateOf(false) }
 
+    var mapReady by remember { mutableStateOf(false) }
+
     val mapView = remember {
         org.osmdroid.config.Configuration.getInstance()
             .load(context, context.getSharedPreferences("osm", 0))
@@ -60,30 +62,42 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     }
 
     LaunchedEffect(showAddLocation) {
+        val cityId = city.id ?: return@LaunchedEffect
+
         if (!showAddLocation) {
             db.collection("cities")
-                .document(city.id!!)
+                .document(cityId)
                 .collection("locations")
                 .get()
                 .addOnSuccessListener { result ->
-
                     locations = result.documents.mapNotNull { doc ->
 
                         val data = doc.data ?: return@mapNotNull null
 
                         val name = data["name"] as? String ?: ""
                         val imageUrl = data["imageUrl"] as? String ?: ""
-                        val latitude = (data["latitude"] as? Double) ?: 0.0
-                        val longitude = (data["longitude"] as? Double) ?: 0.0
+
+                        val latitude = when (val lat = data["latitude"]) {
+                            is Double -> lat
+                            is Long -> lat.toDouble()
+                            is Int -> lat.toDouble()
+                            is String -> lat.toDoubleOrNull() ?: 0.0
+                            else -> 0.0
+                        }
+                        val longitude = when (val lon = data["longitude"]) {
+                            is Double -> lon
+                            is Long -> lon.toDouble()
+                            is Int -> lon.toDouble()
+                            is String -> lon.toDoubleOrNull() ?: 0.0
+                            else -> 0.0
+                        }
 
                         val categories: List<String> =
                             when {
                                 data["categories"] is List<*> ->
                                     (data["categories"] as List<*>).filterIsInstance<String>()
-
                                 data["category"] is String ->
                                     listOf(data["category"] as String)
-
                                 else -> emptyList()
                             }
 
@@ -100,7 +114,9 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(locations) {
+    // ✅ FIX: markers pas toevoegen wanneer mapView bestaat
+    LaunchedEffect(locations, mapReady) {
+        if (!mapReady) return@LaunchedEffect
 
         mapView.overlays.clear()
 
@@ -160,148 +176,166 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         searchOK && catOK
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { showAddLocation = true },
-                    shape = CircleShape,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(bottom = 90.dp, end = 12.dp)
-                        .zIndex(3f)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Location", tint = Color.White)
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddLocation = true },
+                shape = CircleShape,
+                containerColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(bottom = 90.dp, end = 12.dp)
+                    .zIndex(3f)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Location", tint = Color.White)
+            }
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                }
+                Text(
+                    "Ontdek ${city.name}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            TextField(
+                value = search,
+                onValueChange = { search = it },
+                placeholder = { Text("Zoek naar locaties") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = "Search")
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF4F5F6),
+                    unfocusedContainerColor = Color(0xFFF4F5F6),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(16.dp)
+            )
+
+            LazyRow(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .heightIn(min = 40.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(categories) { category ->
+                    FilterChip(
+                        selected = selectedCategories.contains(category),
+                        onClick = {
+                            val currentSelection = selectedCategories.toMutableSet()
+
+                            if (category == "Alles") {
+                                currentSelection.clear()
+                                currentSelection.add("Alles")
+                            } else {
+                                currentSelection.remove("Alles")
+                                if (currentSelection.contains(category))
+                                    currentSelection.remove(category)
+                                else
+                                    currentSelection.add(category)
+
+                                if (currentSelection.isEmpty())
+                                    currentSelection.add("Alles")
+                            }
+
+                            selectedCategories = currentSelection
+                        },
+                        label = { Text(category) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = Color.White
+                        )
+                    )
                 }
             }
-        ) { padding ->
 
-            Column(
+            Box(
+                Modifier
+                    .padding(horizontal = 16.dp)
+                    .height(150.dp)
+                    .clip(RoundedCornerShape(16.dp))
+            ) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = {
+                        mapReady = true
+                        mapView
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            LazyColumn(
                 Modifier
                     .fillMaxSize()
-                    .padding(padding)
+                    .weight(1f)
             ) {
+                items(filteredLocations) { loc ->
 
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                    Text(
-                        "Ontdek ${city.name}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                    val distance = calculateDistanceKm(
+                        userLocation,
+                        GeoPoint(loc.latitude, loc.longitude)
                     )
-                }
 
-                TextField(
-                    value = search,
-                    onValueChange = { search = it },
-                    placeholder = { Text("Zoek naar locaties") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFFF4F5F6),
-                        unfocusedContainerColor = Color(0xFFF4F5F6),
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                )
+                    Card(
+                        onClick = { selectedLocation = loc },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp, horizontal = 16.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(2.dp)
+                    ) {
 
-                LazyRow(
-                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(categories) { category ->
-                        FilterChip(
-                            selected = selectedCategories.contains(category),
-                            onClick = {
-                                val newSet = selectedCategories.toMutableSet()
-
-                                if (category == "Alles") {
-                                    newSet.clear()
-                                    newSet.add("Alles")
-                                } else {
-                                    newSet.remove("Alles")
-                                    if (newSet.contains(category)) newSet.remove(category)
-                                    else newSet.add(category)
-                                    if (newSet.isEmpty()) newSet.add("Alles")
-                                }
-
-                                selectedCategories = newSet
-                            },
-                            label = { Text(category) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = Color.White
-                            )
-                        )
-                    }
-                }
-
-                Box(
-                    Modifier
-                        .padding(horizontal = 16.dp)
-                        .height(150.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                ) {
-                    AndroidView(
-                        modifier = Modifier.fillMaxSize(),
-                        factory = { mapView }
-                    )
-                }
-
-                LazyColumn(Modifier.padding(16.dp)) {
-                    items(filteredLocations) { loc ->
-                        val distance = calculateDistanceKm(
-                            userLocation,
-                            GeoPoint(loc.latitude, loc.longitude)
-                        )
-
-                        Card(
-                            onClick = { selectedLocation = loc },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(2.dp)
+                        Row(
+                            Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
 
-                                Image(
-                                    painter = rememberAsyncImagePainter(loc.imageUrl),
-                                    contentDescription = loc.name,
-                                    modifier = Modifier
-                                        .size(70.dp)
-                                        .clip(RoundedCornerShape(10.dp)),
-                                    contentScale = ContentScale.Crop
+                            Image(
+                                painter = rememberAsyncImagePainter(loc.imageUrl),
+                                contentDescription = loc.name,
+                                modifier = Modifier
+                                    .size(70.dp)
+                                    .clip(RoundedCornerShape(10.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+
+                            Spacer(Modifier.width(12.dp))
+
+                            Column {
+                                Text(loc.name, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "${loc.categories.joinToString(" • ")} • $distance km",
+                                    color = Color.Gray
                                 )
-
-                                Spacer(Modifier.width(12.dp))
-
-                                Column {
-                                    Text(loc.name, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        "${loc.categories.joinToString(" • ")} • $distance km",
-                                        color = Color.Gray
-                                    )
-                                }
                             }
                         }
                     }
                 }
+
+                item { Spacer(modifier = Modifier.height(120.dp)) }
             }
         }
     }

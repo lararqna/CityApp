@@ -1,3 +1,5 @@
+package com.example.cityapp.models
+
 data class City(
     val id: String? = null,
     val name: String = "",

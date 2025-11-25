@@ -1,6 +1,6 @@
 package com.example.cityapp.ui
 
-import City
+import com.example.cityapp.models.City
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,9 +28,7 @@ fun CityScreen(modifier: Modifier = Modifier) {
     val db = Firebase.firestore
     var cities by remember { mutableStateOf<List<City>>(emptyList()) }
 
-    val refreshKey by rememberUpdatedState(showAddCityForm)
-
-    LaunchedEffect(refreshKey) {
+    LaunchedEffect(showAddCityForm) {
         if (!showAddCityForm) {
             db.collection("cities")
                 .get()

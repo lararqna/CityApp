@@ -1,6 +1,6 @@
 package com.example.cityapp.ui
 
-import City
+import com.example.cityapp.models.City
 import android.net.Uri
 import android.view.View
 import android.widget.Toast

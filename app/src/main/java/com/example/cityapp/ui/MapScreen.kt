@@ -1,6 +1,6 @@
 package com.example.cityapp.ui
 
-import City
+import com.example.cityapp.models.City
 import Location
 import android.annotation.SuppressLint
 import android.view.View

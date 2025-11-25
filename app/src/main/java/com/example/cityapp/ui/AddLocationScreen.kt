@@ -1,6 +1,6 @@
 package com.example.cityapp.ui
 
-import City
+import com.example.cityapp.models.City
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -211,6 +211,7 @@ fun AddLocationScreen(
                     val location = mutableMapOf(
                         "name" to name,
                         "categories" to selectedCategory,
+                        "imageUrl" to "",
                         "address" to address,
                         "latitude" to selectedPoint!!.latitude,
                         "longitude" to selectedPoint!!.longitude
