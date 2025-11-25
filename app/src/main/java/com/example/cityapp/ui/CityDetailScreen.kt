@@ -47,18 +47,16 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
 
     var mapReady by remember { mutableStateOf(false) }
 
-    val mapView = remember {
+    val mapView = MapView(context).apply {
         org.osmdroid.config.Configuration.getInstance()
             .load(context, context.getSharedPreferences("osm", 0))
 
-        MapView(context).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
-            controller.setZoom(13.0)
-            controller.setCenter(GeoPoint(city.latitude, city.longitude))
-            setMultiTouchControls(true)
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            isTilesScaledToDpi = true
-        }
+        setTileSource(TileSourceFactory.MAPNIK)
+        controller.setZoom(13.0)
+        controller.setCenter(GeoPoint(city.latitude, city.longitude))
+        setMultiTouchControls(true)
+        setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        isTilesScaledToDpi = true
     }
 
     LaunchedEffect(showAddLocation) {
@@ -76,7 +74,6 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
 
                         val name = data["name"] as? String ?: ""
                         val imageUrl = data["imageUrl"] as? String ?: ""
-
                         val latitude = when (val lat = data["latitude"]) {
                             is Double -> lat
                             is Long -> lat.toDouble()
@@ -84,6 +81,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                             is String -> lat.toDoubleOrNull() ?: 0.0
                             else -> 0.0
                         }
+
                         val longitude = when (val lon = data["longitude"]) {
                             is Double -> lon
                             is Long -> lon.toDouble()
@@ -96,8 +94,10 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                             when {
                                 data["categories"] is List<*> ->
                                     (data["categories"] as List<*>).filterIsInstance<String>()
+
                                 data["category"] is String ->
                                     listOf(data["category"] as String)
+
                                 else -> emptyList()
                             }
 
@@ -114,33 +114,41 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         }
     }
 
-    // ✅ FIX: markers pas toevoegen wanneer mapView bestaat
+    // ✅ FIX: alleen markers updaten als mapReady & mapView attached, + try/catch tegen NPE
     LaunchedEffect(locations, mapReady) {
         if (!mapReady) return@LaunchedEffect
+        if (mapView.handler == null) return@LaunchedEffect  // view nog niet aan window gekoppeld
 
-        mapView.overlays.clear()
+        try {
+            mapView.overlays.clear()
 
-        mapView.overlays.add(
-            Marker(mapView).apply {
-                position = GeoPoint(city.latitude, city.longitude)
-                icon = context.getDrawable(R.drawable.ic_location_pin)
-                title = "city"
-                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            }
-        )
-
-        locations.forEach { loc ->
             mapView.overlays.add(
                 Marker(mapView).apply {
-                    position = GeoPoint(loc.latitude, loc.longitude)
-                    title = loc.name
+                    position = GeoPoint(city.latitude, city.longitude)
                     icon = context.getDrawable(R.drawable.ic_location_pin)
+                    title = "city"
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 }
             )
-        }
 
-        mapView.invalidate()
+            locations.forEach { loc ->
+                mapView.overlays.add(
+                    Marker(mapView).apply {
+                        position = GeoPoint(loc.latitude, loc.longitude)
+                        title = loc.name
+                        icon = context.getDrawable(R.drawable.ic_location_pin)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    }
+                )
+            }
+
+            mapView.invalidate()
+        } catch (e: NullPointerException) {
+            e.printStackTrace()
+            // we skippen markers i.p.v. app te laten crashen
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     if (selectedLocation != null) {
