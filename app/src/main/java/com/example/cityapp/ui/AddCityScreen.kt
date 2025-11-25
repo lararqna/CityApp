@@ -29,11 +29,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import org.osmdroid.config.Configuration
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -45,6 +48,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import java.util.*
+import com.example.cityapp.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,6 +145,7 @@ fun AddCityScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .height(200.dp)
                     .clip(RoundedCornerShape(16.dp)),
+                selectedPoint = selectedLocation,
                 onLocationSelected = { selectedLocation = it }
             )
             selectedLocation?.let {
@@ -187,21 +192,23 @@ private fun SectionTitle(title: String) {
 @Composable
 fun LocationPickerMap(
     modifier: Modifier = Modifier,
+    selectedPoint: GeoPoint?,
     onLocationSelected: (GeoPoint) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val mapView = remember {
-        org.osmdroid.config.Configuration.getInstance().load(context, context.getSharedPreferences("osm", 0))
+        org.osmdroid.config.Configuration.getInstance().apply {
+            userAgentValue = "CityApp"
+        }
+
         MapView(context).apply {
-            controller.setCenter(GeoPoint(51.2194, 4.4025))
             setTileSource(TileSourceFactory.MAPNIK)
-            controller.setZoom(12.0)
+            controller.setZoom(14.0)
+            controller.setCenter(GeoPoint(51.2194, 4.4025))
             setMultiTouchControls(true)
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
             isTilesScaledToDpi = true
-            overlays.clear()
         }
     }
 
@@ -213,22 +220,42 @@ fun LocationPickerMap(
                 else -> {}
             }
         }
+
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(selectedPoint) {
+        if (selectedPoint != null) {
+            mapView.overlays.clear()
+
+            val marker = org.osmdroid.views.overlay.Marker(mapView).apply {
+                position = selectedPoint
+                icon = context.getDrawable(R.drawable.ic_location_pin) // jouw blauwe pin
+                setAnchor(
+                    org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                    org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                )
+                infoWindow = null
+            }
+
+            mapView.overlays.add(marker)
+            mapView.controller.animateTo(selectedPoint)
+            mapView.invalidate()
         }
     }
 
     Box(modifier = modifier) {
         AndroidView(
-            factory = { mapView },
             modifier = Modifier.fillMaxSize(),
+            factory = { mapView },
             update = { view ->
                 view.addMapListener(object : MapListener {
                     override fun onScroll(event: ScrollEvent?): Boolean {
                         onLocationSelected(view.mapCenter as GeoPoint)
                         return true
                     }
+
                     override fun onZoom(event: ZoomEvent?): Boolean {
                         onLocationSelected(view.mapCenter as GeoPoint)
                         return true
@@ -236,13 +263,14 @@ fun LocationPickerMap(
                 })
             }
         )
+
         Icon(
-            imageVector = Icons.Default.LocationOn,
-            contentDescription = "Kaart pin",
-            tint = MaterialTheme.colorScheme.primary,
+            painter = painterResource(R.drawable.ic_location_pin),
+            contentDescription = "Location Pin",
+            tint = Color.Unspecified,
             modifier = Modifier
+                .size(50.dp)
                 .align(Alignment.Center)
-                .size(48.dp)
         )
     }
 }
@@ -255,9 +283,7 @@ fun ImagePicker(
 ) {
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
-        onResult = { uri: Uri? ->
-            onImageSelected(uri)
-        }
+        onResult = { uri: Uri? -> onImageSelected(uri) }
     )
 
     Box(
@@ -277,7 +303,7 @@ fun ImagePicker(
         if (selectedImageUri != null) {
             Image(
                 painter = rememberAsyncImagePainter(selectedImageUri),
-                contentDescription = "Geselecteerde afbeelding",
+                contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
@@ -285,7 +311,7 @@ fun ImagePicker(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.AddPhotoAlternate,
-                    contentDescription = "Selecteer afbeelding",
+                    contentDescription = null,
                     modifier = Modifier.size(48.dp),
                     tint = Color.Gray
                 )
@@ -294,4 +320,3 @@ fun ImagePicker(
         }
     }
 }
-

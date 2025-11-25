@@ -3,7 +3,7 @@ package com.example.cityapp.models
 data class Location(
     val id: String = "",
     val name: String,
-    val category: String,
+    val categories: List<String> = emptyList(),
     val imageUrl: String,
     val latitude: Double,
     val longitude: Double
@@ -11,7 +11,7 @@ data class Location(
     constructor() : this(
         id = "",
         name = "",
-        category = "",
+        categories = emptyList(),
         imageUrl = "",
         latitude = 0.0,
         longitude = 0.0

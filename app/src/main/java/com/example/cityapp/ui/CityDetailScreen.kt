@@ -15,8 +15,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,22 +35,20 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 
-
-
-
-data class Location(
-    val name: String = "",
-    val category: String = "",
-    val imageUrl: String? = "",
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0
-)
-
 @Composable
 fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
+
     val context = LocalContext.current
+    val db = Firebase.firestore
+
+    var locations by remember { mutableStateOf<List<Location>>(emptyList()) }
+    var selectedLocation by remember { mutableStateOf<Location?>(null) }
+    var showAddLocation by remember { mutableStateOf(false) }
+
     val mapView = remember {
-        org.osmdroid.config.Configuration.getInstance().load(context, context.getSharedPreferences("osm", 0))
+        org.osmdroid.config.Configuration.getInstance()
+            .load(context, context.getSharedPreferences("osm", 0))
+
         MapView(context).apply {
             setTileSource(TileSourceFactory.MAPNIK)
             controller.setZoom(13.0)
@@ -60,77 +56,76 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
             setMultiTouchControls(true)
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
             isTilesScaledToDpi = true
-            overlays.clear()
-
-            val cityMarker = Marker(this).apply {
-                position = GeoPoint(city.latitude, city.longitude)
-                icon = context.getDrawable(R.drawable.ic_location_pin)
-                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            }
-            overlays.add(cityMarker)
         }
     }
 
-
-    var locations by remember { mutableStateOf<List<Location>>(emptyList()) }
-    val db = Firebase.firestore
-
-
-    LaunchedEffect(city.id) {
-        if (!city.id.isNullOrEmpty()) {
+    LaunchedEffect(showAddLocation) {
+        if (!showAddLocation) {
             db.collection("cities")
-                .document(city.id)
+                .document(city.id!!)
                 .collection("locations")
                 .get()
                 .addOnSuccessListener { result ->
+
                     locations = result.documents.mapNotNull { doc ->
-                        doc.toObject(Location::class.java)?.let { loc ->
-                            Location(
-                                id = doc.id,
-                                name = loc.name,
-                                category = loc.category,
-                                imageUrl = loc.imageUrl ?: "",
-                                latitude = loc.latitude,
-                                longitude = loc.longitude
-                            )
-                        }
+
+                        val data = doc.data ?: return@mapNotNull null
+
+                        val name = data["name"] as? String ?: ""
+                        val imageUrl = data["imageUrl"] as? String ?: ""
+                        val latitude = (data["latitude"] as? Double) ?: 0.0
+                        val longitude = (data["longitude"] as? Double) ?: 0.0
+
+                        val categories: List<String> =
+                            when {
+                                data["categories"] is List<*> ->
+                                    (data["categories"] as List<*>).filterIsInstance<String>()
+
+                                data["category"] is String ->
+                                    listOf(data["category"] as String)
+
+                                else -> emptyList()
+                            }
+
+                        Location(
+                            id = doc.id,
+                            name = name,
+                            categories = categories,
+                            imageUrl = imageUrl,
+                            latitude = latitude,
+                            longitude = longitude
+                        )
                     }
                 }
         }
     }
 
     LaunchedEffect(locations) {
-        val cityGeoPoint = GeoPoint(city.latitude, city.longitude)
-        mapView.overlays.removeAll { it is Marker && it.position != cityGeoPoint }
 
-        for (attr in locations) {
-            val marker = Marker(mapView).apply {
-                position = GeoPoint(attr.latitude, attr.longitude)
-                title = attr.name
+        mapView.overlays.clear()
+
+        mapView.overlays.add(
+            Marker(mapView).apply {
+                position = GeoPoint(city.latitude, city.longitude)
                 icon = context.getDrawable(R.drawable.ic_location_pin)
+                title = "city"
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             }
-            mapView.overlays.add(marker)
+        )
+
+        locations.forEach { loc ->
+            mapView.overlays.add(
+                Marker(mapView).apply {
+                    position = GeoPoint(loc.latitude, loc.longitude)
+                    title = loc.name
+                    icon = context.getDrawable(R.drawable.ic_location_pin)
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                }
+            )
         }
+
         mapView.invalidate()
     }
-
-    var search by remember { mutableStateOf("") }
-    var selectedCategories by remember { mutableStateOf(setOf("Alles")) }
-
-    val categories = remember(locations) {
-        listOf("Alles") + locations.map { it.category }.distinct().sorted()
-    }
-
-    val filteredLocations= locations.filter { location ->
-        val searchMatch = location.name.contains(search, ignoreCase = true)
-        val categoryMatch = selectedCategories.contains("Alles") || selectedCategories.contains(location.category)
-        searchMatch && categoryMatch
-    }
-
-
-    var selectedLocation by remember { mutableStateOf<Location?>(null) }
-    var showAddLocation by remember { mutableStateOf(false) }
 
     if (selectedLocation != null) {
         LocationDetailScreen(
@@ -149,6 +144,22 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         return
     }
 
+    var search by remember { mutableStateOf("") }
+    var selectedCategories by remember { mutableStateOf(setOf("Alles")) }
+
+    val categories = remember(locations) {
+        listOf("Alles") + locations.flatMap { it.categories }.distinct().sorted()
+    }
+
+    val filteredLocations = locations.filter { loc ->
+        val searchOK = loc.name.contains(search, ignoreCase = true)
+        val catOK =
+            selectedCategories.contains("Alles") ||
+                    loc.categories.any { selectedCategories.contains(it) }
+
+        searchOK && catOK
+    }
+
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             floatingActionButton = {
@@ -165,7 +176,13 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                 }
             }
         ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding)) {
+
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -207,22 +224,19 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                         FilterChip(
                             selected = selectedCategories.contains(category),
                             onClick = {
-                                val currentSelection = selectedCategories.toMutableSet()
+                                val newSet = selectedCategories.toMutableSet()
+
                                 if (category == "Alles") {
-                                    currentSelection.clear()
-                                    currentSelection.add("Alles")
+                                    newSet.clear()
+                                    newSet.add("Alles")
                                 } else {
-                                    currentSelection.remove("Alles")
-                                    if (currentSelection.contains(category)) {
-                                        currentSelection.remove(category)
-                                    } else {
-                                        currentSelection.add(category)
-                                    }
-                                    if (currentSelection.isEmpty()){
-                                        currentSelection.add("Alles")
-                                    }
+                                    newSet.remove("Alles")
+                                    if (newSet.contains(category)) newSet.remove(category)
+                                    else newSet.add(category)
+                                    if (newSet.isEmpty()) newSet.add("Alles")
                                 }
-                                selectedCategories = currentSelection
+
+                                selectedCategories = newSet
                             },
                             label = { Text(category) },
                             colors = FilterChipDefaults.filterChipColors(
@@ -241,15 +255,19 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                 ) {
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
-                        factory = { mapView },
+                        factory = { mapView }
                     )
                 }
 
                 LazyColumn(Modifier.padding(16.dp)) {
-                    items(locations) { location ->
-                        val distance = calculateDistanceKm(userLocation, GeoPoint(location.latitude, location.longitude))
+                    items(filteredLocations) { loc ->
+                        val distance = calculateDistanceKm(
+                            userLocation,
+                            GeoPoint(loc.latitude, loc.longitude)
+                        )
+
                         Card(
-                            onClick = { selectedLocation = location },
+                            onClick = { selectedLocation = loc },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp),
@@ -257,19 +275,28 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             elevation = CardDefaults.cardElevation(2.dp)
                         ) {
-                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+
                                 Image(
-                                    painter = rememberAsyncImagePainter(location.imageUrl),
-                                    contentDescription = location.name,
+                                    painter = rememberAsyncImagePainter(loc.imageUrl),
+                                    contentDescription = loc.name,
                                     modifier = Modifier
                                         .size(70.dp)
                                         .clip(RoundedCornerShape(10.dp)),
                                     contentScale = ContentScale.Crop
                                 )
+
                                 Spacer(Modifier.width(12.dp))
+
                                 Column {
-                                    Text(location.name, fontWeight = FontWeight.Bold)
-                                    Text("${location.category} • $distance km", color = Color.Gray)
+                                    Text(loc.name, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "${loc.categories.joinToString(" • ")} • $distance km",
+                                        color = Color.Gray
+                                    )
                                 }
                             }
                         }
@@ -279,6 +306,5 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         }
     }
 }
-
 
 private fun Double.toRadians() = this * Math.PI / 180

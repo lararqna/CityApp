@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,19 +25,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.rememberAsyncImagePainter
+import com.example.cityapp.R
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.ktx.storage
+import kotlinx.coroutines.*
+import org.json.JSONArray
+import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import java.net.URL
+import java.net.URLEncoder
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,13 +60,33 @@ fun AddLocationScreen(
     val storage = Firebase.storage
 
     var name by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var selectedImage by remember { mutableStateOf<Uri?>(null) }
+    var address by remember { mutableStateOf("") }
     var selectedPoint by remember { mutableStateOf<GeoPoint?>(null) }
+    var selectedImage by remember { mutableStateOf<Uri?>(null) }
+    var selectedCategory by remember { mutableStateOf<List<String>>(emptyList()) }
+    var geocodingLoading by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
     val categories = listOf("Eten & Drinken", "Cultuur", "Winkelen", "Verblijf", "Historisch")
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
+
+    suspend fun geocode(query: String): GeoPoint? = withContext(Dispatchers.IO) {
+        try {
+            val url = "https://nominatim.openstreetmap.org/search?format=json&q=" +
+                    URLEncoder.encode(query, "UTF-8")
+
+            val connection = URL(url).openConnection()
+            connection.setRequestProperty("User-Agent", "CityApp/1.0")
+
+            val response = connection.getInputStream().bufferedReader().readText()
+            val arr = JSONArray(response)
+            if (arr.length() == 0) return@withContext null
+
+            val obj = arr.getJSONObject(0)
+            GeoPoint(obj.getDouble("lat"), obj.getDouble("lon"))
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -69,7 +97,7 @@ fun AddLocationScreen(
                         "Annuleren",
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .padding(end = 16.dp)
+                            .padding(16.dp)
                             .clickable { onCancel() }
                     )
                 }
@@ -80,33 +108,33 @@ fun AddLocationScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 80.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-        )
-        {
-
-            Spacer(Modifier.height(10.dp))
-
+                .padding(horizontal = 16.dp)
+        ) {
             Text("Naam", fontWeight = FontWeight.SemiBold)
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                placeholder = { Text("Naam van de locatie") },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(Modifier.height(20.dp))
 
-            Text("Categorie", fontWeight = FontWeight.SemiBold)
-            LazyRow(
-                modifier = Modifier.padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Text("Categorieën", fontWeight = FontWeight.SemiBold)
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(categories) { cat ->
                     FilterChip(
-                        selected = selectedCategory == cat,
-                        onClick = { selectedCategory = cat },
+                        selected = selectedCategory.contains(cat),
+                        onClick = {
+                            selectedCategory =
+                                if (selectedCategory.contains(cat))
+                                    selectedCategory - cat
+                                else selectedCategory + cat
+                        },
                         label = { Text(cat) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -118,80 +146,86 @@ fun AddLocationScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            Text("Beschrijving", fontWeight = FontWeight.SemiBold)
+            Text("Adres", fontWeight = FontWeight.SemiBold)
+
             OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                placeholder = { Text("Beschrijving van de locatie") },
+                value = address,
+                onValueChange = { address = it },
+                placeholder = { Text("bv. Grand Place, 1000 Brussel") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Button(
+                onClick = {
+                    if (address.isBlank()) {
+                        Toast.makeText(context, "Voer een adres in!", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    geocodingLoading = true
+                    CoroutineScope(Dispatchers.Main).launch {
+                        val point = geocode(address)
+                        geocodingLoading = false
+                        if (point == null)
+                            Toast.makeText(context, "Adres niet gevonden!", Toast.LENGTH_LONG).show()
+                        else selectedPoint = point
+                    }
+                },
+                enabled = !geocodingLoading
+            ) {
+                if (geocodingLoading) CircularProgressIndicator(Modifier.size(20.dp))
+                else Text("Zoek adres")
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            LocationPickerMap(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp)
+                    .height(230.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+                selectedPoint = selectedPoint
             )
 
             Spacer(Modifier.height(20.dp))
 
             Text("Foto", fontWeight = FontWeight.SemiBold)
+
             ImagePicker(
                 selectedImageUri = selectedImage,
                 onImageSelected = { selectedImage = it },
-                modifier = Modifier.height(180.dp)
+                modifier = Modifier.height(200.dp)
             )
 
-            Spacer(Modifier.height(24.dp))
-
-            Text("Kies positie", fontWeight = FontWeight.SemiBold)
-            LocationPickerMap(
-                modifier = Modifier
-                    .height(220.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp)),
-                onLocationSelected = { selectedPoint = it }
-            )
-
-            selectedPoint?.let {
-                Text(
-                    "Lat: %.4f, Lon: %.4f".format(it.latitude, it.longitude),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(32.dp))
 
             Button(
                 onClick = {
-                    if (name.isBlank() || selectedCategory == null || selectedPoint == null) {
+                    if (name.isBlank() || selectedCategory.isEmpty() || selectedPoint == null) {
                         Toast.makeText(context, "Vul alle velden in!", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    if (city.id == null) {
-                        Toast.makeText(context, "Error: city.id is null", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
                     isLoading = true
 
-                    fun saveLocation(imageUrl: String?) {
-                        val newLocation = mapOf(
-                            "name" to name,
-                            "category" to selectedCategory,
-                            "description" to description,
-                            "imageUrl" to imageUrl,
-                            "latitude" to selectedPoint!!.latitude,
-                            "longitude" to selectedPoint!!.longitude
-                        )
+                    val location = mutableMapOf(
+                        "name" to name,
+                        "categories" to selectedCategory,
+                        "address" to address,
+                        "latitude" to selectedPoint!!.latitude,
+                        "longitude" to selectedPoint!!.longitude
+                    )
+
+                    fun save(url: String?) {
+                        if (url != null) location["imageUrl"] = url
 
                         db.collection("cities")
                             .document(city.id!!)
                             .collection("locations")
-                            .add(newLocation)
+                            .add(location)
                             .addOnSuccessListener {
                                 Toast.makeText(context, "Locatie toegevoegd!", Toast.LENGTH_SHORT).show()
                                 onCancel()
-                            }
-                            .addOnFailureListener {
-                                Toast.makeText(context, "Error: ${it.message}", Toast.LENGTH_LONG).show()
                             }
                             .addOnCompleteListener { isLoading = false }
                     }
@@ -200,21 +234,77 @@ fun AddLocationScreen(
                         val ref = storage.reference.child("location_images/${UUID.randomUUID()}.jpg")
                         ref.putFile(selectedImage!!)
                             .continueWithTask { ref.downloadUrl }
-                            .addOnSuccessListener { saveLocation(it.toString()) }
-                    } else {
-                        saveLocation(null)
-                    }
+                            .addOnSuccessListener { save(it.toString()) }
+                    } else save(null)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
+                    .height(55.dp),
                 enabled = !isLoading
             ) {
                 if (isLoading) CircularProgressIndicator(color = Color.White)
                 else Text("Locatie opslaan")
             }
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(100.dp))
         }
     }
 }
+
+@Composable
+fun LocationPickerMap(
+    modifier: Modifier = Modifier,
+    selectedPoint: GeoPoint?
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val mapView = remember {
+        Configuration.getInstance().userAgentValue = "CityApp"
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            controller.setZoom(14.0)
+            controller.setCenter(GeoPoint(51.2194, 4.4025))
+            setMultiTouchControls(true)
+            isTilesScaledToDpi = true
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            LifecycleEventObserver { _, e ->
+                when (e) {
+                    Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                    Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                    else -> {}
+                }
+            }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(selectedPoint) {
+        if (selectedPoint != null) {
+            mapView.overlays.clear()
+            val marker = org.osmdroid.views.overlay.Marker(mapView).apply {
+                position = selectedPoint
+                icon = context.getDrawable(R.drawable.ic_location_pin)
+                setAnchor(
+                    org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                    org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                )
+                infoWindow = null
+            }
+            mapView.overlays.add(marker)
+            mapView.controller.animateTo(selectedPoint)
+            mapView.invalidate()
+        }
+    }
+
+    AndroidView(
+        modifier = modifier,
+        factory = { mapView }
+    )
+}
+
