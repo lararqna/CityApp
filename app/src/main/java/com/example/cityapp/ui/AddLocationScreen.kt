@@ -4,10 +4,10 @@ import com.example.cityapp.models.City
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -48,6 +48,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import java.net.URL
 import java.net.URLEncoder
 import java.util.*
+import android.Manifest
+import com.google.android.gms.location.LocationServices
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +72,83 @@ fun AddLocationScreen(
     var isLoading by remember { mutableStateOf(false) }
 
     val categories = listOf("Eten & Drinken", "Cultuur", "Winkelen", "Verblijf", "Historisch")
+    val fusedLocationClient = remember {
+        LocationServices.getFusedLocationProviderClient(context)
+    }
+    suspend fun reverseGeocode(point: GeoPoint): String? = withContext(Dispatchers.IO) {
+        try {
+            val url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=${point.latitude}&lon=${point.longitude}"
+
+            val connection = URL(url).openConnection()
+            connection.setRequestProperty("User-Agent", "CityApp/1.0")
+
+            val response = connection.getInputStream().bufferedReader().readText()
+            val obj = org.json.JSONObject(response)
+            obj.getString("display_name")
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    val scope = rememberCoroutineScope()
+
+    fun requestCurrentLocation() {
+        try {
+
+            fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
+                if (lastLoc != null) {
+
+                    val userPoint = GeoPoint(lastLoc.latitude, lastLoc.longitude)
+                    selectedPoint = userPoint
+                    scope.launch {
+                        val foundAddress = reverseGeocode(userPoint)
+                        if (foundAddress != null) {
+                            address = foundAddress
+                        }
+                    }
+                } else {
+
+                    fusedLocationClient.getCurrentLocation(
+                        com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+                        null
+                    ).addOnSuccessListener { currentLoc ->
+                        if (currentLoc != null) {
+                            val userPoint = GeoPoint(currentLoc.latitude, currentLoc.longitude)
+                            selectedPoint = userPoint
+                            scope.launch {
+                                val foundAddress = reverseGeocode(userPoint)
+                                if (foundAddress != null) {
+                                    address = foundAddress
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "Kon de locatie niet bepalen.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        } catch (e: SecurityException) {
+            Toast.makeText(context, "Beveiligingsfout bij ophalen locatie.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { granted ->
+            if (granted) {
+                requestCurrentLocation()
+            } else {
+                Toast.makeText(context, "Locatie-permissie geweigerd", Toast.LENGTH_SHORT).show()
+            }
+        }
+    )
+
+    LaunchedEffect(true) {
+        permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
+
 
     suspend fun geocode(query: String): GeoPoint? = withContext(Dispatchers.IO) {
         try {
@@ -155,29 +236,52 @@ fun AddLocationScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Button(
-                onClick = {
-                    if (address.isBlank()) {
-                        Toast.makeText(context, "Voer een adres in!", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    geocodingLoading = true
-                    CoroutineScope(Dispatchers.Main).launch {
-                        val point = geocode(address)
-                        geocodingLoading = false
-                        if (point == null)
-                            Toast.makeText(context, "Adres niet gevonden!", Toast.LENGTH_LONG).show()
-                        else selectedPoint = point
-                    }
-                },
-                enabled = !geocodingLoading
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (geocodingLoading) CircularProgressIndicator(Modifier.size(20.dp))
-                else Text("Zoek adres")
+                Button(
+                    onClick = {
+                        if (address.isBlank()) {
+                            Toast.makeText(context, "Voer een adres in!", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        geocodingLoading = true
+                        scope.launch {
+                            val point = geocode(address)
+                            geocodingLoading = false
+                            if (point == null)
+                                Toast.makeText(context, "Adres niet gevonden!", Toast.LENGTH_LONG).show()
+                            else selectedPoint = point
+                        }
+                    },
+                    enabled = !geocodingLoading,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (geocodingLoading) CircularProgressIndicator(Modifier.size(20.dp))
+                    else Text("Zoek adres")
+                }
+
+
+                IconButton(
+                    onClick = {
+                        permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MyLocation,
+                        contentDescription = "Gebruik mijn huidige locatie"
+                    )
+                }
             }
 
+
+
             Spacer(Modifier.height(16.dp))
+
+
+
 
             LocationPickerMap(
                 modifier = Modifier
