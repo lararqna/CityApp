@@ -6,7 +6,10 @@ data class Location(
     val categories: List<String> = emptyList(),
     val imageUrl: String,
     val latitude: Double,
-    val longitude: Double
+    val longitude: Double,
+    val initialReview: String? = null,
+    val initialRating: Int? = null,
+    val initialUsername: String? = null
 ){
     constructor() : this(
         id = "",
@@ -14,6 +17,9 @@ data class Location(
         categories = emptyList(),
         imageUrl = "",
         latitude = 0.0,
-        longitude = 0.0
+        longitude = 0.0,
+        initialReview = "",
+        initialRating = 0,
+        initialUsername = ""
     )
 }

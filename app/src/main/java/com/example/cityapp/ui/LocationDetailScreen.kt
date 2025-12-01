@@ -56,7 +56,6 @@ fun LocationDetailScreen(
     var isPosting by remember { mutableStateOf(false) }
     var currentUserData by remember { mutableStateOf<User?>(null) }
 
-
     LaunchedEffect(location.id) {
         db.collection("attractions").document(location.id)
             .collection("reviews")
@@ -151,124 +150,64 @@ fun LocationDetailScreen(
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold
                 )
-                val averageRating by remember(reviews) {
-                    derivedStateOf {
-                        if (reviews.isEmpty()) 0.0 else reviews.map { it.rating }.average()
-                    }
-                }
-
-                val reviewCount by remember(reviews) { derivedStateOf { reviews.size } }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Star, null, tint = Color(0xFFFFC107))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = if (reviewCount == 0) {
-                            "Nog geen beoordelingen"
-                        } else {
-                            "%.1f (%d %s)".format(
-                                averageRating,
-                                reviewCount,
-                                if (reviewCount == 1) "beoordeling" else "beoordelingen"
-                            )
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Text(
-                    "Een populaire bezienswaardigheid in de stad. Perfect voor een dagje uit!",
-                    style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 26.sp
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        .padding(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Afstand vanaf jouw locatie",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = calculateDistanceKm(userLocation, GeoPoint(location.latitude, location.longitude)),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
 
                 Divider()
 
-                Text("Beoordelingen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Wat vond jij ervan?", fontWeight = FontWeight.Bold)
-
-                        Row {
-                            (1..5).forEach { star ->
-                                Icon(
-                                    imageVector = if (star <= myRating) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFFC107),
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clickable { myRating = star.toFloat() }
-                                )
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = myReviewText,
-                            onValueChange = { myReviewText = it },
-                            label = { Text("Deel je ervaring...") },
-                            modifier = Modifier.fillMaxWidth(),
-                            maxLines = 4
-                        )
-
-                        Button(
-                            onClick = { postReview() },
-                            enabled = !isPosting && myRating > 0f && myReviewText.isNotBlank(),
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            if (isPosting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text("Plaatsen")
-                            }
-                        }
-                    }
-                }
+                Text(
+                    "Beoordelingen",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
 
                 if (reviews.isEmpty()) {
-                    Text("Nog geen beoordelingen. Wees de eerste!", color = Color.Gray)
+
+                    if (!location.initialReview.isNullOrBlank() && location.initialRating != null) {
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+
+                                Text(
+                                    text = location.initialUsername?.ifBlank { "Onbekende gebruiker" }
+                                        ?: "Onbekende gebruiker",
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Row(modifier = Modifier.padding(bottom = 6.dp)) {
+                                    (1..5).forEach { i ->
+                                        Icon(
+                                            imageVector = Icons.Filled.Star,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = if (i <= location.initialRating)
+                                                Color(0xFFFFC107)
+                                            else
+                                                Color.LightGray
+                                        )
+                                    }
+                                }
+
+                                Text(location.initialReview)
+                            }
+                        }
+
+                    } else {
+                        Text("Nog geen beoordelingen. Wees de eerste!", color = Color.Gray)
+                    }
+
                 } else {
+
                     reviews.forEach { review ->
                         ReviewCard(review = review)
                     }
+
                 }
+
                 Spacer(modifier = Modifier.height(50.dp))
             }
         }
@@ -289,8 +228,7 @@ fun ReviewCard(review: Review) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(review.username, fontWeight = FontWeight.Bold)
                 Text(
@@ -300,7 +238,7 @@ fun ReviewCard(review: Review) {
                 )
             }
 
-            Row(modifier = Modifier.padding(vertical = 6.dp)) {
+            Row {
                 (1..5).forEach { i ->
                     Icon(
                         imageVector = Icons.Filled.Star,
@@ -311,30 +249,7 @@ fun ReviewCard(review: Review) {
                 }
             }
 
-            Text(review.text, style = MaterialTheme.typography.bodyMedium)
+            Text(review.text)
         }
-    }
-}
-
-fun calculateDistanceKm(userLocation: GeoPoint?, target: GeoPoint): String {
-    if (userLocation == null) return "Locatie onbekend"
-
-    val earthRadius = 6371.0
-
-    val dLat = Math.toRadians(target.latitude - userLocation.latitude)
-    val dLon = Math.toRadians(target.longitude - userLocation.longitude)
-
-    val a = sin(dLat / 2).pow(2) +
-            cos(Math.toRadians(userLocation.latitude)) *
-            cos(Math.toRadians(target.latitude)) *
-            sin(dLon / 2).pow(2)
-
-    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    val distance = earthRadius * c
-
-    return when {
-        distance < 1 -> "${(distance * 1000).toInt()} m"
-        distance < 10 -> "%.1f km".format(distance)
-        else -> "%.0f km".format(distance)
     }
 }

@@ -107,17 +107,19 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                             categories = categories,
                             imageUrl = imageUrl,
                             latitude = latitude,
-                            longitude = longitude
+                            longitude = longitude,
+                            initialReview = data["initialReview"] as? String,
+                            initialRating = (data["initialRating"] as? Long)?.toInt(),
+                            initialUsername = data["initialUsername"] as? String
                         )
                     }
                 }
         }
     }
 
-    // ✅ FIX: alleen markers updaten als mapReady & mapView attached, + try/catch tegen NPE
     LaunchedEffect(locations, mapReady) {
         if (!mapReady) return@LaunchedEffect
-        if (mapView.handler == null) return@LaunchedEffect  // view nog niet aan window gekoppeld
+        if (mapView.handler == null) return@LaunchedEffect
 
         try {
             mapView.overlays.clear()
@@ -145,7 +147,6 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
             mapView.invalidate()
         } catch (e: NullPointerException) {
             e.printStackTrace()
-            // we skippen markers i.p.v. app te laten crashen
         } catch (e: Exception) {
             e.printStackTrace()
         }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,12 +35,10 @@ import com.example.cityapp.R
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.ktx.storage
+import com.google.firebase.auth.ktx.auth
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.osmdroid.config.Configuration
-import org.osmdroid.events.MapListener
-import org.osmdroid.events.ScrollEvent
-import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -50,7 +49,6 @@ import java.net.URLEncoder
 import java.util.*
 import android.Manifest
 import com.google.android.gms.location.LocationServices
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +60,7 @@ fun AddLocationScreen(
     val context = LocalContext.current
     val db = Firebase.firestore
     val storage = Firebase.storage
+    val auth = Firebase.auth
 
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
@@ -70,18 +69,21 @@ fun AddLocationScreen(
     var selectedCategory by remember { mutableStateOf<List<String>>(emptyList()) }
     var geocodingLoading by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var review by remember { mutableStateOf("") }
+    var initialRating by remember { mutableStateOf(0f) }
 
     val categories = listOf("Eten & Drinken", "Cultuur", "Winkelen", "Verblijf", "Historisch")
+
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
     }
+
     suspend fun reverseGeocode(point: GeoPoint): String? = withContext(Dispatchers.IO) {
         try {
-            val url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=${point.latitude}&lon=${point.longitude}"
-
+            val url =
+                "https://nominatim.openstreetmap.org/reverse?format=json&lat=${point.latitude}&lon=${point.longitude}"
             val connection = URL(url).openConnection()
             connection.setRequestProperty("User-Agent", "CityApp/1.0")
-
             val response = connection.getInputStream().bufferedReader().readText()
             val obj = org.json.JSONObject(response)
             obj.getString("display_name")
@@ -94,10 +96,8 @@ fun AddLocationScreen(
 
     fun requestCurrentLocation() {
         try {
-
             fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
                 if (lastLoc != null) {
-
                     val userPoint = GeoPoint(lastLoc.latitude, lastLoc.longitude)
                     selectedPoint = userPoint
                     scope.launch {
@@ -107,7 +107,6 @@ fun AddLocationScreen(
                         }
                     }
                 } else {
-
                     fusedLocationClient.getCurrentLocation(
                         com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
                         null
@@ -132,15 +131,11 @@ fun AddLocationScreen(
         }
     }
 
-
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
-            if (granted) {
-                requestCurrentLocation()
-            } else {
-                Toast.makeText(context, "Locatie-permissie geweigerd", Toast.LENGTH_SHORT).show()
-            }
+            if (granted) requestCurrentLocation()
+            else Toast.makeText(context, "Locatie-permissie geweigerd", Toast.LENGTH_SHORT).show()
         }
     )
 
@@ -148,20 +143,16 @@ fun AddLocationScreen(
         permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-
-
     suspend fun geocode(query: String): GeoPoint? = withContext(Dispatchers.IO) {
         try {
-            val url = "https://nominatim.openstreetmap.org/search?format=json&q=" +
-                    URLEncoder.encode(query, "UTF-8")
-
+            val url =
+                "https://nominatim.openstreetmap.org/search?format=json&q=" +
+                        URLEncoder.encode(query, "UTF-8")
             val connection = URL(url).openConnection()
             connection.setRequestProperty("User-Agent", "CityApp/1.0")
-
             val response = connection.getInputStream().bufferedReader().readText()
             val arr = JSONArray(response)
             if (arr.length() == 0) return@withContext null
-
             val obj = arr.getJSONObject(0)
             GeoPoint(obj.getDouble("lat"), obj.getDouble("lon"))
         } catch (_: Exception) {
@@ -212,8 +203,7 @@ fun AddLocationScreen(
                         selected = selectedCategory.contains(cat),
                         onClick = {
                             selectedCategory =
-                                if (selectedCategory.contains(cat))
-                                    selectedCategory - cat
+                                if (selectedCategory.contains(cat)) selectedCategory - cat
                                 else selectedCategory + cat
                         },
                         label = { Text(cat) },
@@ -263,25 +253,19 @@ fun AddLocationScreen(
                     else Text("Zoek adres")
                 }
 
-
                 IconButton(
-                    onClick = {
-                        permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    }
+                    onClick = { permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) },
+                    modifier = Modifier.size(56.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.MyLocation,
-                        contentDescription = "Gebruik mijn huidige locatie"
+                        contentDescription = "Gebruik mijn huidige locatie",
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }
 
-
-
             Spacer(Modifier.height(16.dp))
-
-
-
 
             LocationPickerMap(
                 modifier = Modifier
@@ -303,44 +287,96 @@ fun AddLocationScreen(
 
             Spacer(Modifier.height(32.dp))
 
+            Text("Jouw beoordeling", fontWeight = FontWeight.SemiBold)
+
+            Row(modifier = Modifier.padding(vertical = 8.dp)) {
+                (1..5).forEach { star ->
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = if (star <= initialRating) Color(0xFFFFC107) else Color.LightGray,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clickable { initialRating = star.toFloat() }
+                    )
+                }
+            }
+
+            Text("Eerste recensie", fontWeight = FontWeight.SemiBold)
+
+            OutlinedTextField(
+                value = review,
+                onValueChange = { review = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Schrijf een korte eerste recensie...") },
+                minLines = 3
+            )
+
+            Spacer(Modifier.height(20.dp))
+
             Button(
                 onClick = {
-                    if (name.isBlank() || selectedCategory.isEmpty() || selectedPoint == null) {
+                    if (
+                        name.isBlank() ||
+                        selectedCategory.isEmpty() ||
+                        selectedPoint == null ||
+                        review.isBlank() ||
+                        initialRating == 0f
+                    ) {
                         Toast.makeText(context, "Vul alle velden in!", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
                     isLoading = true
 
-                    val location = mutableMapOf(
-                        "name" to name,
-                        "categories" to selectedCategory,
-                        "imageUrl" to "",
-                        "address" to address,
-                        "latitude" to selectedPoint!!.latitude,
-                        "longitude" to selectedPoint!!.longitude
-                    )
-
-                    fun save(url: String?) {
-                        if (url != null) location["imageUrl"] = url
-
-                        db.collection("cities")
-                            .document(city.id!!)
-                            .collection("locations")
-                            .add(location)
-                            .addOnSuccessListener {
-                                Toast.makeText(context, "Locatie toegevoegd!", Toast.LENGTH_SHORT).show()
-                                onCancel()
-                            }
-                            .addOnCompleteListener { isLoading = false }
+                    val user = auth.currentUser
+                    if (user == null) {
+                        Toast.makeText(context, "Niet ingelogd", Toast.LENGTH_SHORT).show()
+                        isLoading = false
+                        return@Button
                     }
 
-                    if (selectedImage != null) {
-                        val ref = storage.reference.child("location_images/${UUID.randomUUID()}.jpg")
-                        ref.putFile(selectedImage!!)
-                            .continueWithTask { ref.downloadUrl }
-                            .addOnSuccessListener { save(it.toString()) }
-                    } else save(null)
+                    db.collection("users").document(user.uid).get()
+                        .addOnSuccessListener { doc ->
+
+                            val firstName = doc.getString("firstName") ?: ""
+                            val lastName = doc.getString("lastName") ?: ""
+                            val fullName = "$firstName $lastName".trim()
+
+                            val location = mutableMapOf(
+                                "name" to name,
+                                "categories" to selectedCategory,
+                                "imageUrl" to "",
+                                "address" to address,
+                                "latitude" to selectedPoint!!.latitude,
+                                "longitude" to selectedPoint!!.longitude,
+                                "initialReview" to review,
+                                "initialRating" to initialRating.toInt(),
+                                "initialUsername" to fullName
+                            )
+
+                            fun save(url: String?) {
+                                if (url != null) location["imageUrl"] = url
+
+                                db.collection("cities")
+                                    .document(city.id!!)
+                                    .collection("locations")
+                                    .add(location)
+                                    .addOnSuccessListener {
+                                        Toast.makeText(context, "Locatie toegevoegd!", Toast.LENGTH_SHORT).show()
+                                        onCancel()
+                                    }
+                                    .addOnCompleteListener { isLoading = false }
+                            }
+
+                            if (selectedImage != null) {
+                                val ref =
+                                    storage.reference.child("location_images/${UUID.randomUUID()}.jpg")
+                                ref.putFile(selectedImage!!)
+                                    .continueWithTask { ref.downloadUrl }
+                                    .addOnSuccessListener { save(it.toString()) }
+                            } else save(null)
+                        }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -412,4 +448,3 @@ fun LocationPickerMap(
         factory = { mapView }
     )
 }
-
