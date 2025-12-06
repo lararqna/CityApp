@@ -109,6 +109,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                             name = name,
                             categories = categories,
                             imageUrl = imageUrl,
+                            address = data["address"] as? String,
                             latitude = latitude,
                             longitude = longitude,
                             initialReview = data["initialReview"] as? String,

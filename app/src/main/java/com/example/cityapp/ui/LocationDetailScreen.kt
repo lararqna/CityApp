@@ -230,12 +230,6 @@ fun LocationDetailScreen(
                 Divider()
 
                 if (!location.initialReview.isNullOrBlank() && location.initialRating != null) {
-                    Text(
-                        text = "Eerste indruk",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-
                     Row(modifier = Modifier.padding(vertical = 6.dp)) {
                         (1..5).forEach { i ->
                             Icon(
