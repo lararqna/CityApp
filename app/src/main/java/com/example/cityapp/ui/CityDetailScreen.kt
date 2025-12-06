@@ -121,8 +121,9 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(locations, mapReady) {
-        if (!mapReady || mapView.handler == null) return@LaunchedEffect
+    LaunchedEffect(locations, mapReady, mapKey) {
+        if (!mapReady) return@LaunchedEffect
+        if (mapView.handler == null) return@LaunchedEffect
 
         mapView.overlays.clear()
 
@@ -166,7 +167,11 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     if (showAddLocation) {
         AddLocationScreen(
             city = city,
-            onCancel = { showAddLocation = false }
+            onCancel = {
+                showAddLocation = false
+                mapReady = false
+                mapKey++
+            }
         )
         return
     }
@@ -291,6 +296,10 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                     factory = {
                         mapReady = true
                         mapView
+                    },
+                    onRelease = {
+                        it.onPause()
+                        it.onDetach()
                     }
                 )
             }

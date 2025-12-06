@@ -72,7 +72,23 @@ fun AddLocationScreen(
     var review by remember { mutableStateOf("") }
     var initialRating by remember { mutableStateOf(0f) }
 
-    val categories = listOf("Eten & Drinken", "Cultuur", "Winkelen", "Verblijf", "Historisch")
+    val categories = listOf(
+        "Eten & Drinken",
+        "Café & Bar",
+        "Cultuur",
+        "Natuur & Parken",
+        "Bezienswaardigheid",
+        "Historisch",
+        "Winkelen",
+        "Verblijf",
+        "Sport & Recreatie",
+        "Musea",
+        "Uitgaan & Nachtleven",
+        "Gezin & Kinderen",
+        "Wellness & Ontspanning",
+        "Evenementen",
+        "Overig"
+    )
 
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
