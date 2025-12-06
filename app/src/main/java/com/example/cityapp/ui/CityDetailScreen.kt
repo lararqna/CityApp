@@ -46,8 +46,9 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     var showAddLocation by remember { mutableStateOf(false) }
 
     var mapReady by remember { mutableStateOf(false) }
+    var mapKey by remember { mutableStateOf(0) }
 
-    val mapView = remember {
+    val mapView = remember(mapKey) {
         org.osmdroid.config.Configuration.getInstance()
             .load(context, context.getSharedPreferences("osm", 0))
 
@@ -151,10 +152,15 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         LocationDetailScreen(
             location = selectedLocation!!,
             userLocation = userLocation,
-            onBack = { selectedLocation = null }
+            onBack = {
+                selectedLocation = null
+                mapReady = false
+                mapKey++
+            }
         )
         return
     }
+
 
     if (showAddLocation) {
         AddLocationScreen(
