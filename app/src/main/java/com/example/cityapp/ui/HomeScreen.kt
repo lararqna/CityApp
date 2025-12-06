@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
+
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.GeoPoint
 
@@ -100,14 +101,33 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
     ) { innerPadding ->
 
         when (selectedItemIndex) {
-            0 -> CityScreen(modifier = Modifier.padding(innerPadding))
-            1 -> MapScreen(modifier = Modifier.padding(innerPadding))
-            2 -> Text("Chatbox Scherm", modifier = Modifier.padding(innerPadding))
+            0 -> CityScreen(
+
+                modifier = Modifier.padding(innerPadding)
+            )
+            1 -> MapScreen(
+
+                modifier = Modifier.padding(innerPadding)
+            )
+            2 -> {
+
+                val currentUser = auth.currentUser
+                if (currentUser != null) {
+                    ChatboxScreen(
+                        currentUserId = currentUser.uid,
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                } else {
+
+                    Text("Log in om je inbox te bekijken", modifier = Modifier.padding(innerPadding))
+                }
+            }
             3 -> ProfileScreen(
                 navController = navController,
                 auth = auth,
                 modifier = Modifier.padding(innerPadding)
             )
         }
+
     }
 }
