@@ -151,7 +151,26 @@ fun LocationDetailScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                // ⬇️ AANGEPAST: samenvatting enkel tonen als er reviews zijn
+                if (!location.address.isNullOrBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = Color.Gray,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = location.address,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                    }
+                }
+
                 val averageRating by remember(reviews) {
                     derivedStateOf {
                         if (reviews.isEmpty()) 0.0 else reviews.map { it.rating }.average()

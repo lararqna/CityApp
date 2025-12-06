@@ -47,16 +47,18 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
 
     var mapReady by remember { mutableStateOf(false) }
 
-    val mapView = MapView(context).apply {
+    val mapView = remember {
         org.osmdroid.config.Configuration.getInstance()
             .load(context, context.getSharedPreferences("osm", 0))
 
-        setTileSource(TileSourceFactory.MAPNIK)
-        controller.setZoom(13.0)
-        controller.setCenter(GeoPoint(city.latitude, city.longitude))
-        setMultiTouchControls(true)
-        setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        isTilesScaledToDpi = true
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            controller.setZoom(13.0)
+            controller.setCenter(GeoPoint(city.latitude, city.longitude))
+            setMultiTouchControls(true)
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            isTilesScaledToDpi = true
+        }
     }
 
     LaunchedEffect(showAddLocation) {
@@ -118,38 +120,31 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     }
 
     LaunchedEffect(locations, mapReady) {
-        if (!mapReady) return@LaunchedEffect
-        if (mapView.handler == null) return@LaunchedEffect
+        if (!mapReady || mapView.handler == null) return@LaunchedEffect
 
-        try {
-            mapView.overlays.clear()
+        mapView.overlays.clear()
 
+        mapView.overlays.add(
+            Marker(mapView).apply {
+                position = GeoPoint(city.latitude, city.longitude)
+                icon = context.getDrawable(R.drawable.ic_location_pin)
+                title = city.name
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            }
+        )
+
+        locations.forEach { loc ->
             mapView.overlays.add(
                 Marker(mapView).apply {
-                    position = GeoPoint(city.latitude, city.longitude)
+                    position = GeoPoint(loc.latitude, loc.longitude)
                     icon = context.getDrawable(R.drawable.ic_location_pin)
-                    title = "city"
+                    title = loc.name
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 }
             )
-
-            locations.forEach { loc ->
-                mapView.overlays.add(
-                    Marker(mapView).apply {
-                        position = GeoPoint(loc.latitude, loc.longitude)
-                        title = loc.name
-                        icon = context.getDrawable(R.drawable.ic_location_pin)
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    }
-                )
-            }
-
-            mapView.invalidate()
-        } catch (e: NullPointerException) {
-            e.printStackTrace()
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
+
+        mapView.invalidate()
     }
 
     if (selectedLocation != null) {
