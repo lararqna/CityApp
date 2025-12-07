@@ -1,5 +1,3 @@
-package com.example.cityapp.ui
-
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -10,6 +8,8 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Apartment
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -18,16 +18,26 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-
+import com.example.cityapp.ui.ChatboxScreen
+import com.example.cityapp.ui.CityScreen
+import com.example.cityapp.ui.MapScreen
+import com.example.cityapp.ui.ProfileScreen
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.GeoPoint
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 data class BottomNavItem(
     val label: String,
@@ -37,7 +47,8 @@ data class BottomNavItem(
 )
 
 @Composable
-fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
+fun HomeScreen(navController: NavController, auth: FirebaseAuth, unreadViewModel: UnreadMessagesViewModel = viewModel()) {
+    val hasUnreadMessages by unreadViewModel.hasUnreadMessages.collectAsState()
     val items = listOf(
         BottomNavItem(
             label = "Steden",
@@ -78,14 +89,25 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
                         onClick = { selectedItemIndex = index },
                         label = { Text(item.label) },
                         icon = {
-                            Icon(
-                                imageVector = if (selectedItemIndex == index) {
-                                    item.selectedIcon
-                                } else {
-                                    item.unselectedIcon
-                                },
-                                contentDescription = item.label
-                            )
+                            if (item.route == "inbox") {
+                                BadgedBox(
+                                    badge = {
+                                        if (hasUnreadMessages) {
+                                            Badge()
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = if (selectedItemIndex == index) item.selectedIcon else item.unselectedIcon,
+                                        contentDescription = item.label
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = if (selectedItemIndex == index) item.selectedIcon else item.unselectedIcon,
+                                    contentDescription = item.label
+                                )
+                            }
                         },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -99,35 +121,35 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth) {
             }
         }
     ) { innerPadding ->
-
         when (selectedItemIndex) {
-            0 -> CityScreen(
-
-                modifier = Modifier.padding(innerPadding)
-            )
-            1 -> MapScreen(
-
-                modifier = Modifier.padding(innerPadding)
-            )
-            2 -> {
-
-                val currentUser = auth.currentUser
-                if (currentUser != null) {
-                    ChatboxScreen(
-                        currentUserId = currentUser.uid,
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                } else {
-
-                    Text("Log in om je inbox te bekijken", modifier = Modifier.padding(innerPadding))
-                }
-            }
-            3 -> ProfileScreen(
-                navController = navController,
-                auth = auth,
-                modifier = Modifier.padding(innerPadding)
-            )
+            0 -> CityScreen(modifier = Modifier.padding(innerPadding))
+            1 -> MapScreen(modifier = Modifier.padding(innerPadding))
+            2 -> { ChatboxScreen(modifier = Modifier.padding(innerPadding),) }
+            3 -> ProfileScreen(navController = navController, auth = auth, modifier = Modifier.padding(innerPadding))
         }
+    }
+}
 
+class UnreadMessagesViewModel : ViewModel() {
+    private val db = Firebase.firestore
+    private val auth = Firebase.auth
+
+    private val _hasUnreadMessages = MutableStateFlow(false)
+    val hasUnreadMessages: StateFlow<Boolean> = _hasUnreadMessages
+
+    init {
+        listenForUnreadMessages()
+    }
+
+    private fun listenForUnreadMessages() {
+        val currentUserId = auth.currentUser?.uid ?: return
+
+        db.collectionGroup("messages")
+            .whereEqualTo("read", false)
+            .whereArrayContains("usersInChat", currentUserId)
+            .whereNotEqualTo("senderId", currentUserId)
+            .addSnapshotListener { snapshot, _ ->
+                _hasUnreadMessages.value = snapshot?.isEmpty == false
+            }
     }
 }

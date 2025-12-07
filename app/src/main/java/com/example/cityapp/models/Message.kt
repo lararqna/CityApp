@@ -5,6 +5,7 @@ import com.google.firebase.Timestamp
 
 @Keep
 data class Message(
+    val usersInChat: List<String> = emptyList(),
     val senderId: String = "",
     val text: String = "",
     val timestamp: Timestamp = Timestamp.now(),

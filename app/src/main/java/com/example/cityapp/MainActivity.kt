@@ -1,5 +1,6 @@
 package com.example.cityapp
 
+import HomeScreen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,7 +11,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.cityapp.ui.LoginScreen
 import com.example.cityapp.ui.RegisterScreen
-import com.example.cityapp.ui.HomeScreen
 import com.example.cityapp.ui.theme.CityAppTheme
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.ktx.auth
@@ -21,9 +21,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 🔹 Firebase initialiseren (Auth + Firestore)
         FirebaseApp.initializeApp(this)
-        val db = Firebase.firestore // optioneel: forceer Firestore init
+        val db = Firebase.firestore
 
         enableEdgeToEdge()
         setContent {
@@ -34,12 +33,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
     val auth = Firebase.auth
+    val startDestination = if (auth.currentUser != null) {
+        "home"
+    } else {
+        "login"
+    }
 
-    NavHost(navController = navController, startDestination = "login") {
+    NavHost(navController = navController, startDestination = startDestination) {
 
         composable("register") {
             RegisterScreen(navController = navController, auth = auth)
@@ -54,3 +59,4 @@ fun AppNavigation() {
         }
     }
 }
+
