@@ -368,7 +368,8 @@ fun AddLocationScreen(
                                 "longitude" to selectedPoint!!.longitude,
                                 "initialReview" to review,
                                 "initialRating" to initialRating.toInt(),
-                                "initialUsername" to fullName
+                                "initialUsername" to fullName,
+                                "initialUserId" to user.uid
                             )
 
                             fun save(url: String?) {

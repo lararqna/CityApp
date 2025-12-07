@@ -47,6 +47,7 @@ fun LocationDetailScreen(
     location: Location,
     onBack: () -> Unit,
     userLocation: GeoPoint?,
+    onUserClicked: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -159,22 +160,60 @@ fun LocationDetailScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                // 2. "TOEGEVOEGD DOOR..." DIRECT ONDER DE TITEL
-                // We halen deze informatie uit de aparte kaart en integreren het hier.
-                if (location.initialUsername != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!location.address.isNullOrBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Toegevoegd door",
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
                             tint = Color.Gray,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text(
-                            text = "Toegevoegd door ${location.initialUsername}",
+                            text = location.address,
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.Gray
                         )
+                    }
+                }
+
+                // 2. "TOEGEVOEGD DOOR..." DIRECT ONDER DE TITEL
+                // We halen deze informatie uit de aparte kaart en integreren het hier.
+                if (
+                    location.initialUsername != null &&
+                    location.initialUserId != null
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onUserClicked(location.initialUserId)
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "Toegevoegd door ${location.initialUsername}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
 

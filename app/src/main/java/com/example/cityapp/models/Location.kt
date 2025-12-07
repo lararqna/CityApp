@@ -10,7 +10,8 @@ data class Location(
     val longitude: Double,
     val initialReview: String? = null,
     val initialRating: Int? = null,
-    val initialUsername: String? = null
+    val initialUsername: String? = null,
+    val initialUserId: String? = null
 ){
     constructor() : this(
         id = "",
@@ -22,6 +23,7 @@ data class Location(
         longitude = 0.0,
         initialReview = "",
         initialRating = 0,
-        initialUsername = ""
+        initialUsername = "",
+        initialUserId = ""
     )
 }

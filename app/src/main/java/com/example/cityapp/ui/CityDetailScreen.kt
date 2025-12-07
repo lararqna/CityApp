@@ -114,7 +114,8 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                             longitude = longitude,
                             initialReview = data["initialReview"] as? String,
                             initialRating = (data["initialRating"] as? Long)?.toInt(),
-                            initialUsername = data["initialUsername"] as? String
+                            initialUsername = data["initialUsername"] as? String,
+                            initialUserId = data["initialUserId"] as? String
                         )
                     }
                 }
@@ -154,6 +155,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         LocationDetailScreen(
             location = selectedLocation!!,
             userLocation = userLocation,
+            onUserClicked = {userId -> },
             onBack = {
                 selectedLocation = null
                 mapReady = false
