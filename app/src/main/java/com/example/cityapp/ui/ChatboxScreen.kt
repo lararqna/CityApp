@@ -43,15 +43,12 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
-
-
-
-
 
 
 class ChatListViewModel : ViewModel() {
@@ -136,7 +133,6 @@ class UnreadSendersViewModel : ViewModel() {
             }
     }
 
-    // Forceer een update van de lijst met ongelezen berichten
     fun refresh() {
         listenForUnreadMessages()
     }
@@ -162,7 +158,6 @@ class ChatViewModel(
 
     init {
         listenForMessages()
-        // MARKEREER BERICHTEN ALS GELEZEN BIJ HET OPENEN VAN DE CHAT
         markMessagesAsRead()
     }
 
@@ -191,8 +186,6 @@ class ChatViewModel(
             }
     }
 
-    // In ChatViewModel:
-
     fun sendMessage(text: String) {
         if (text.isBlank()) return
         val newMessage = Message(
@@ -203,7 +196,6 @@ class ChatViewModel(
             read = false
         )
         messagesRef.add(newMessage)
-        // Update de chat met de info van het laatste bericht
         chatRef.update(
             mapOf(
                 "lastMessageText" to text,
@@ -217,7 +209,6 @@ class ChatViewModel(
 }
 
 
-// ------------------- COMPOSABLES -------------------
 
 fun getChatId(user1: String, user2: String): String {
     return listOf(user1, user2).sorted().joinToString("_")
@@ -241,7 +232,6 @@ fun ChatboxScreen(
     var isLoading by remember { mutableStateOf(false) }
     val unreadViewModel: UnreadSendersViewModel = viewModel()
 
-    // Functie om een chat aan te maken of te zorgen dat deze bestaat, en dan te navigeren
     fun selectAndCreateChat(otherId: String) {
         if (isLoading) return
 
@@ -283,7 +273,6 @@ fun ChatboxScreen(
                     chatId = selectedChat!!.first,
                     otherUserId = selectedChat!!.second,
                     onBack = {
-                        // Ververs de badges wanneer je terugkomt uit de chat
                         unreadViewModel.refresh()
                         selectedChat = null
                     }
@@ -340,13 +329,13 @@ fun ChatListScreen(
             TopAppBar(
                 title = { Text("Berichten") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent, // Maakt de achtergrond onzichtbaar
-                    titleContentColor = MaterialTheme.colorScheme.onSurface // Tekstkleur aanpassen (bijv. zwart)
+                    containerColor = Color.Transparent,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },floatingActionButton = {
             FloatingActionButton(        onClick = onSearchClick,
-                shape = CircleShape, // <-- VOEG DEZE REGEL TOE
+                shape = CircleShape,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nieuw gesprek", tint = Color.White)
@@ -370,7 +359,6 @@ fun ChatListScreen(
                         ChatItem(
                             user = user,
                             chat = chat,
-                            // Gebruik de status van de UnreadSendersViewModel
                             hasUnread = unreadSenders.contains(user.id),
                             onClick = { onChatSelected(chat.id, user.id) }
                         )
@@ -383,17 +371,13 @@ fun ChatListScreen(
 
 @Composable
 fun ChatItem(user: User, chat: Chat, hasUnread: Boolean, onClick: () -> Unit) {
-    // 1. Haal de ID van de huidige gebruiker op om de afzender te bepalen
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
-    // 2. Bepaal de prefix voor het laatste bericht
     val lastMessagePrefix = if (chat.lastMessageSenderId == currentUserId) {
         "Jij: "
     } else {
-        "" // Geen prefix als het van de andere persoon is
+        ""
     }
-
-    // 3. Bouw de uiteindelijke tekst voor het laatste bericht
     val lastMessageDisplay = if (chat.lastMessageText.isNullOrBlank()) {
         "Nog geen berichten"
     } else {
@@ -410,14 +394,12 @@ fun ChatItem(user: User, chat: Chat, hasUnread: Boolean, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
 
-            // --- LOGICA VOOR PROFIELFOTO/ICOON ---
             val imageModifier = Modifier
                 .size(56.dp)
                 .clip(CircleShape)
                 .background(Color.LightGray)
 
             if (user.profilePictureUrl.isNullOrBlank()) {
-                // Toon het standaard Persoon-icoon (wanneer geen URL)
                 Box(
                     modifier = imageModifier,
                     contentAlignment = Alignment.Center
@@ -430,7 +412,6 @@ fun ChatItem(user: User, chat: Chat, hasUnread: Boolean, onClick: () -> Unit) {
                     )
                 }
             } else {
-                // Probeer de Coil afbeelding te laden (wanneer URL aanwezig)
                 Image(
                     painter = rememberAsyncImagePainter(
                         model = user.profilePictureUrl,
@@ -441,7 +422,6 @@ fun ChatItem(user: User, chat: Chat, hasUnread: Boolean, onClick: () -> Unit) {
                     contentScale = ContentScale.Crop
                 )
             }
-            // --- EINDE LOGICA PROFIELFOTO/ICOON ---
 
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -450,7 +430,7 @@ fun ChatItem(user: User, chat: Chat, hasUnread: Boolean, onClick: () -> Unit) {
                     fontWeight = if (hasUnread) FontWeight.ExtraBold else FontWeight.Bold,
                     fontSize = 17.sp
                 )
-                // TOON HET AANGEPASTE LAATSTE BERICHT
+
                 Text(
                     text = lastMessageDisplay,
                     color = Color.Gray,
@@ -692,10 +672,57 @@ fun ChatScreen(
     }
 }
 
-// Helper Composable
+
 @Composable
 fun rememberChatViewModel(chatId: String, otherUserId: String): ChatViewModel {
     return remember(chatId) {
         ChatViewModel(chatId, otherUserId)
+    }
+}
+class UnreadMessagesViewModel : ViewModel() {
+    private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
+    private var listener: ListenerRegistration? = null
+
+    private val _hasUnreadMessages = MutableStateFlow(false)
+    val hasUnreadMessages: StateFlow<Boolean> = _hasUnreadMessages.asStateFlow()
+
+    init {
+        listenForUnreadMessagesStatus()
+    }
+
+    private fun listenForUnreadMessagesStatus() {
+
+        listener?.remove()
+        val currentUserId = auth.currentUser?.uid ?: return
+
+        listener = db.collectionGroup("messages")
+            .whereEqualTo("read", false)
+            .whereArrayContains("usersInChat", currentUserId)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    android.util.Log.e("UnreadMessagesVM", "Listen failed", e)
+                    _hasUnreadMessages.value = false
+                    return@addSnapshotListener
+                }
+
+                val unreadFromOthers = snapshot?.documents?.any { doc ->
+                    val senderId = doc.getString("senderId")
+                    senderId != currentUserId
+                } ?: false
+
+                _hasUnreadMessages.value = unreadFromOthers
+
+                if (unreadFromOthers) {
+                    android.util.Log.d("UnreadMessagesVM", "Badge status: TRUE")
+                } else {
+                    android.util.Log.d("UnreadMessagesVM", "Badge status: FALSE")
+                }
+            }
+    }
+
+    override fun onCleared() {
+        listener?.remove()
+        super.onCleared()
     }
 }

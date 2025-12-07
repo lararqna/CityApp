@@ -1,4 +1,6 @@
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Apartment
@@ -25,19 +27,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.lifecycle.ViewModel
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.cityapp.ui.ChatboxScreen
 import com.example.cityapp.ui.CityScreen
 import com.example.cityapp.ui.MapScreen
 import com.example.cityapp.ui.ProfileScreen
-import com.google.firebase.Firebase
+import com.example.cityapp.ui.UnreadMessagesViewModel
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.auth
-import com.google.firebase.firestore.firestore
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+
 
 data class BottomNavItem(
     val label: String,
@@ -47,8 +46,13 @@ data class BottomNavItem(
 )
 
 @Composable
-fun HomeScreen(navController: NavController, auth: FirebaseAuth, unreadViewModel: UnreadMessagesViewModel = viewModel()) {
+fun HomeScreen(
+    navController: NavController,
+    auth: FirebaseAuth,
+    unreadViewModel: UnreadMessagesViewModel = viewModel()
+) {
     val hasUnreadMessages by unreadViewModel.hasUnreadMessages.collectAsState()
+
     val items = listOf(
         BottomNavItem(
             label = "Steden",
@@ -93,7 +97,14 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth, unreadViewModel
                                 BadgedBox(
                                     badge = {
                                         if (hasUnreadMessages) {
-                                            Badge()
+
+                                            Badge(
+
+                                                containerColor = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(12.dp)
+                                                    .offset(x = 4.dp, y = (-4).dp)
+                                            )
+
                                         }
                                     }
                                 ) {
@@ -124,32 +135,11 @@ fun HomeScreen(navController: NavController, auth: FirebaseAuth, unreadViewModel
         when (selectedItemIndex) {
             0 -> CityScreen(modifier = Modifier.padding(innerPadding))
             1 -> MapScreen(modifier = Modifier.padding(innerPadding))
-            2 -> { ChatboxScreen(modifier = Modifier.padding(innerPadding),) }
+            2 -> ChatboxScreen(modifier = Modifier.padding(innerPadding))
             3 -> ProfileScreen(navController = navController, auth = auth, modifier = Modifier.padding(innerPadding))
         }
     }
 }
 
-class UnreadMessagesViewModel : ViewModel() {
-    private val db = Firebase.firestore
-    private val auth = Firebase.auth
 
-    private val _hasUnreadMessages = MutableStateFlow(false)
-    val hasUnreadMessages: StateFlow<Boolean> = _hasUnreadMessages
 
-    init {
-        listenForUnreadMessages()
-    }
-
-    private fun listenForUnreadMessages() {
-        val currentUserId = auth.currentUser?.uid ?: return
-
-        db.collectionGroup("messages")
-            .whereEqualTo("read", false)
-            .whereArrayContains("usersInChat", currentUserId)
-            .whereNotEqualTo("senderId", currentUserId)
-            .addSnapshotListener { snapshot, _ ->
-                _hasUnreadMessages.value = snapshot?.isEmpty == false
-            }
-    }
-}
