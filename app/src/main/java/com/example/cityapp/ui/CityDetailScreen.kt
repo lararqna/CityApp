@@ -46,17 +46,20 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
     var showAddLocation by remember { mutableStateOf(false) }
 
     var mapReady by remember { mutableStateOf(false) }
+    var mapKey by remember { mutableStateOf(0) }
 
-    val mapView = MapView(context).apply {
+    val mapView = remember(mapKey) {
         org.osmdroid.config.Configuration.getInstance()
             .load(context, context.getSharedPreferences("osm", 0))
 
-        setTileSource(TileSourceFactory.MAPNIK)
-        controller.setZoom(13.0)
-        controller.setCenter(GeoPoint(city.latitude, city.longitude))
-        setMultiTouchControls(true)
-        setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        isTilesScaledToDpi = true
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            controller.setZoom(13.0)
+            controller.setCenter(GeoPoint(city.latitude, city.longitude))
+            setMultiTouchControls(true)
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            isTilesScaledToDpi = true
+        }
     }
 
     LaunchedEffect(showAddLocation) {
@@ -106,6 +109,7 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                             name = name,
                             categories = categories,
                             imageUrl = imageUrl,
+                            address = data["address"] as? String,
                             latitude = latitude,
                             longitude = longitude,
                             initialReview = data["initialReview"] as? String,
@@ -117,54 +121,57 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(locations, mapReady) {
+    LaunchedEffect(locations, mapReady, mapKey) {
         if (!mapReady) return@LaunchedEffect
         if (mapView.handler == null) return@LaunchedEffect
 
-        try {
-            mapView.overlays.clear()
+        mapView.overlays.clear()
 
+        mapView.overlays.add(
+            Marker(mapView).apply {
+                position = GeoPoint(city.latitude, city.longitude)
+                icon = context.getDrawable(R.drawable.ic_location_pin)
+                title = city.name
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            }
+        )
+
+        locations.forEach { loc ->
             mapView.overlays.add(
                 Marker(mapView).apply {
-                    position = GeoPoint(city.latitude, city.longitude)
+                    position = GeoPoint(loc.latitude, loc.longitude)
                     icon = context.getDrawable(R.drawable.ic_location_pin)
-                    title = "city"
+                    title = loc.name
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 }
             )
-
-            locations.forEach { loc ->
-                mapView.overlays.add(
-                    Marker(mapView).apply {
-                        position = GeoPoint(loc.latitude, loc.longitude)
-                        title = loc.name
-                        icon = context.getDrawable(R.drawable.ic_location_pin)
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    }
-                )
-            }
-
-            mapView.invalidate()
-        } catch (e: NullPointerException) {
-            e.printStackTrace()
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
+
+        mapView.invalidate()
     }
 
     if (selectedLocation != null) {
         LocationDetailScreen(
             location = selectedLocation!!,
             userLocation = userLocation,
-            onBack = { selectedLocation = null }
+            onBack = {
+                selectedLocation = null
+                mapReady = false
+                mapKey++
+            }
         )
         return
     }
 
+
     if (showAddLocation) {
         AddLocationScreen(
             city = city,
-            onCancel = { showAddLocation = false }
+            onCancel = {
+                showAddLocation = false
+                mapReady = false
+                mapKey++
+            }
         )
         return
     }
@@ -289,6 +296,10 @@ fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
                     factory = {
                         mapReady = true
                         mapView
+                    },
+                    onRelease = {
+                        it.onPause()
+                        it.onDetach()
                     }
                 )
             }
