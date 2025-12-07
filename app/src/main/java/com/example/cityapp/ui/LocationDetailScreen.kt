@@ -147,32 +147,51 @@ fun LocationDetailScreen(
                 contentScale = ContentScale.Crop
             )
 
+            // --- NIEUWE VOLGORDE BEGINT HIER ---
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 1. TITEL
                 Text(
                     text = location.name,
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold
                 )
 
-                val averageRating by remember(reviews) {
-                    derivedStateOf {
-                        if (reviews.isEmpty()) 0.0 else reviews.map { it.rating }.average()
+                // 2. "TOEGEVOEGD DOOR..." DIRECT ONDER DE TITEL
+                // We halen deze informatie uit de aparte kaart en integreren het hier.
+                if (location.initialUsername != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Toegevoegd door",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "Toegevoegd door ${location.initialUsername}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
                     }
                 }
-                val reviewCount by remember(reviews) { derivedStateOf { reviews.size } }
 
-                if (reviewCount > 0) {
+                // 3. GEMIDDELDE SCORE EN AANTAL BEOORDELINGEN
+                val totalReviews = reviews.size + if (location.initialReview != null) 1 else 0
+                val allRatings = reviews.map { it.rating } + listOfNotNull(location.initialRating?.toFloat())
+                val averageRating = if (allRatings.isEmpty()) 0.0 else allRatings.average()
+
+                if (totalReviews > 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Star, null, tint = Color(0xFFFFC107))
                         Spacer(Modifier.width(6.dp))
                         Text(
                             text = "%.1f (%d %s)".format(
                                 averageRating,
-                                reviewCount,
-                                if (reviewCount == 1) "beoordeling" else "beoordelingen"
+                                totalReviews,
+                                if (totalReviews == 1) "beoordeling" else "beoordelingen"
                             ),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold
@@ -180,6 +199,7 @@ fun LocationDetailScreen(
                     }
                 }
 
+                // 4. AFSTANDSINDICATOR
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -215,53 +235,14 @@ fun LocationDetailScreen(
 
                 Divider()
 
-                // NIEUW: Kaart toegevoegd om de originele poster en hun eerste recensie te tonen
-                if (!location.initialReview.isNullOrBlank() && location.initialRating != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "Toegevoegd door",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = "Toegevoegd door ${location.initialUsername ?: "iemand"}",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row(modifier = Modifier.padding(vertical = 4.dp)) {
-                                (1..5).forEach { i ->
-                                    Icon(
-                                        imageVector = Icons.Filled.Star,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
-                                        tint = if (i <= location.initialRating!!) Color(0xFFFFC107) else Color.Gray
-                                    )
-                                }
-                            }
-                            Text(
-                                text = location.initialReview,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                        }
-                    }
-                    Divider()
-                }
-
+                // 5. SECTIETITEL VOOR BEOORDELINGEN
                 Text(
                     "Beoordelingen",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
 
+                // 6. JE EIGEN REVIEW-INVOERKAART
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -300,10 +281,7 @@ fun LocationDetailScreen(
                             modifier = Modifier.align(Alignment.End)
                         ) {
                             if (isPosting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp
-                                )
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                             } else {
                                 Text("Plaatsen")
                             }
@@ -311,9 +289,23 @@ fun LocationDetailScreen(
                     }
                 }
 
-                if (reviews.isEmpty()) {
+                // 7. LIJST VAN ALLE BEOORDELINGEN
+                // Toon de eerste beoordeling (initialReview) als die bestaat
+                if (location.initialReview != null && location.initialRating != null && location.initialUsername != null) {
+                    val initialReviewAsReview = Review(
+                        username = location.initialUsername!!,
+                        rating = location.initialRating!!.toFloat(),
+                        text = location.initialReview!!,
+                        // Je kunt hier een placeholder timestamp gebruiken of de 'addedAt' van de locatie als je die hebt
+                        timestamp = Timestamp.now() // Dit is een benadering
+                    )
+                    ReviewCard(review = initialReviewAsReview)
+                }
+
+                // Toon de rest van de beoordelingen
+                if (reviews.isEmpty() && location.initialReview == null) {
                     Text(
-                        "Nog geen andere beoordelingen.",
+                        "Nog geen beoordelingen.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.Gray,
                         modifier = Modifier.padding(top = 8.dp)

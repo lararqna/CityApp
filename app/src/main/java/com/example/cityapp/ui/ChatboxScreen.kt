@@ -622,9 +622,9 @@ fun ChatScreen(
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Terug") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = Color.Transparent,
+                    titleContentColor =  Color.Black,
+                    navigationIconContentColor =  Color.Black
                 )
             )
         }
@@ -656,7 +656,13 @@ fun ChatScreen(
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Typ een bericht...") },
                     shape = RoundedCornerShape(24.dp),
-                    colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        disabledContainerColor = Color.White,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    )
                 )
                 Spacer(Modifier.width(8.dp))
                 Button(
