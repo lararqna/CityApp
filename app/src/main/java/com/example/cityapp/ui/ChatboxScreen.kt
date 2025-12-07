@@ -340,8 +340,8 @@ fun ChatListScreen(
             TopAppBar(
                 title = { Text("Berichten") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
+                    containerColor = Color.Transparent, // Maakt de achtergrond onzichtbaar
+                    titleContentColor = MaterialTheme.colorScheme.onSurface // Tekstkleur aanpassen (bijv. zwart)
                 )
             )
         },floatingActionButton = {
@@ -513,8 +513,13 @@ fun UserSearchScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "Terug")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent
+                )
             )
+
+
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).padding(horizontal = 16.dp)) {
@@ -526,6 +531,9 @@ fun UserSearchScreen(
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 shape = RoundedCornerShape(24.dp),
                 colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    disabledContainerColor = Color.White,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 )
@@ -534,28 +542,64 @@ fun UserSearchScreen(
                 items(filteredUsers, key = { it.first }) { (userId, user) ->
                     Card(
                         onClick = { onUserSelected(userId) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 1.dp
+                        )
                     ) {
                         Row(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Image(
-                                painter = rememberAsyncImagePainter(
-                                    model = user.profilePictureUrl,
-                                    error = painterResource(id = R.drawable.ic_location_pin)
-                                ),
-                                contentDescription = "Profielfoto",
-                                modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.LightGray),
-                                contentScale = ContentScale.Crop
-                            )
-                            Spacer(Modifier.width(16.dp))
+
+                            // Zelfde profielfoto-stijl als Inbox
+                            val imageModifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Color.LightGray)
+
+                            if (user.profilePictureUrl.isNullOrBlank()) {
+                                Box(
+                                    modifier = imageModifier,
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "Profielfoto",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(8.dp),
+                                        tint = Color.Gray
+                                    )
+                                }
+                            } else {
+                                Image(
+                                    painter = rememberAsyncImagePainter(
+                                        model = user.profilePictureUrl,
+                                        error = painterResource(id = R.drawable.ic_location_pin)
+                                    ),
+                                    contentDescription = "Profielfoto",
+                                    modifier = imageModifier,
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+
+                            Spacer(Modifier.width(12.dp))
+
+                            // Zelfde tekststijl als Inbox
                             Text(
                                 text = "${user.firstName} ${user.lastName}".trim(),
-                                fontSize = 16.sp
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp
                             )
                         }
                     }
+
                 }
             }
         }
