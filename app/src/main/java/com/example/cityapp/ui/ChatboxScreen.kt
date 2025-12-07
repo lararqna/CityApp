@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +33,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.cityapp.R
+import com.example.cityapp.models.Chat
+import com.example.cityapp.models.Message
+import com.example.cityapp.models.User
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -45,34 +49,10 @@ import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ------------------- DATA CLASSES -------------------
-// Zorg dat deze klassen overeenkomen met je Firestore-structuur.
-
-data class User(
-    val id: String = "",
-    val firstName: String = "",
-    val lastName: String = "",
-    val profileImageUrl: String = ""
-)
-
-data class Chat(
-    val id: String = "",
-    val users: List<String> = emptyList(),
-    val lastMessageText: String? = null,
-    val lastMessageTimestamp: Timestamp? = null
-)
-
-data class Message(
-    val senderId: String = "",
-    val text: String = "",
-    val timestamp: Timestamp = Timestamp.now(),
-    val usersInChat: List<String> = emptyList(),
-    // ESSENTIEEL VOOR NOTIFICATIES
-    val read: Boolean = false
-)
 
 
-// ------------------- VIEWMODELS -------------------
+
+
 
 class ChatListViewModel : ViewModel() {
     private val db = FirebaseFirestore.getInstance()
@@ -211,6 +191,8 @@ class ChatViewModel(
             }
     }
 
+    // In ChatViewModel:
+
     fun sendMessage(text: String) {
         if (text.isBlank()) return
         val newMessage = Message(
@@ -218,7 +200,6 @@ class ChatViewModel(
             text = text,
             timestamp = Timestamp.now(),
             usersInChat = listOf(currentUserId, otherUserId),
-            // NIEUWE BERICHTEN ZIJN ONGELEZEN
             read = false
         )
         messagesRef.add(newMessage)
@@ -226,7 +207,9 @@ class ChatViewModel(
         chatRef.update(
             mapOf(
                 "lastMessageText" to text,
-                "lastMessageTimestamp" to newMessage.timestamp
+                "lastMessageTimestamp" to newMessage.timestamp,
+                // ESSENTIEEL: Stuur de sender ID mee
+                "lastMessageSenderId" to currentUserId
             )
         )
     }
@@ -361,15 +344,15 @@ fun ChatListScreen(
                     titleContentColor = Color.White
                 )
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onSearchClick,
+        },floatingActionButton = {
+            FloatingActionButton(        onClick = onSearchClick,
+                shape = CircleShape, // <-- VOEG DEZE REGEL TOE
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nieuw gesprek", tint = Color.White)
             }
         }
+
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (showLoading && chatsWithUsers.isEmpty()) {
@@ -400,35 +383,76 @@ fun ChatListScreen(
 
 @Composable
 fun ChatItem(user: User, chat: Chat, hasUnread: Boolean, onClick: () -> Unit) {
+    // 1. Haal de ID van de huidige gebruiker op om de afzender te bepalen
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+
+    // 2. Bepaal de prefix voor het laatste bericht
+    val lastMessagePrefix = if (chat.lastMessageSenderId == currentUserId) {
+        "Jij: "
+    } else {
+        "" // Geen prefix als het van de andere persoon is
+    }
+
+    // 3. Bouw de uiteindelijke tekst voor het laatste bericht
+    val lastMessageDisplay = if (chat.lastMessageText.isNullOrBlank()) {
+        "Nog geen berichten"
+    } else {
+        lastMessagePrefix + chat.lastMessageText
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(if (hasUnread) 2.dp else 1.dp),
-        // Lichtblauwe achtergrond bij ongelezen
         colors = CardDefaults.cardColors(containerColor = if (hasUnread) Color(0xFFF0F8FF) else Color.White)
     ) {
         Row(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = rememberAsyncImagePainter(
-                    model = user.profileImageUrl,
-                    error = painterResource(id = R.drawable.ic_location_pin)
-                ),
-                contentDescription = "Profielfoto",
-                modifier = Modifier.size(56.dp).clip(CircleShape).background(Color.LightGray),
-                contentScale = ContentScale.Crop
-            )
+
+            // --- LOGICA VOOR PROFIELFOTO/ICOON ---
+            val imageModifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(Color.LightGray)
+
+            if (user.profilePictureUrl.isNullOrBlank()) {
+                // Toon het standaard Persoon-icoon (wanneer geen URL)
+                Box(
+                    modifier = imageModifier,
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Standaard profielfoto",
+                        modifier = Modifier.fillMaxSize().padding(8.dp),
+                        tint = Color.Gray
+                    )
+                }
+            } else {
+                // Probeer de Coil afbeelding te laden (wanneer URL aanwezig)
+                Image(
+                    painter = rememberAsyncImagePainter(
+                        model = user.profilePictureUrl,
+                        error = painterResource(id = R.drawable.ic_location_pin)
+                    ),
+                    contentDescription = "Profielfoto van ${user.firstName}",
+                    modifier = imageModifier,
+                    contentScale = ContentScale.Crop
+                )
+            }
+            // --- EINDE LOGICA PROFIELFOTO/ICOON ---
+
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "${user.firstName} ${user.lastName}".trim(),
-                    // Vetgedrukt bij ongelezen
                     fontWeight = if (hasUnread) FontWeight.ExtraBold else FontWeight.Bold,
                     fontSize = 17.sp
                 )
+                // TOON HET AANGEPASTE LAATSTE BERICHT
                 Text(
-                    text = chat.lastMessageText ?: "Nog geen berichten",
+                    text = lastMessageDisplay,
                     color = Color.Gray,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -444,7 +468,6 @@ fun ChatItem(user: User, chat: Chat, hasUnread: Boolean, onClick: () -> Unit) {
                     )
                 }
 
-                // DE ONGELEZEN BADGE
                 if (hasUnread) {
                     Spacer(Modifier.height(4.dp))
                     Box(
@@ -519,7 +542,7 @@ fun UserSearchScreen(
                         ) {
                             Image(
                                 painter = rememberAsyncImagePainter(
-                                    model = user.profileImageUrl,
+                                    model = user.profilePictureUrl,
                                     error = painterResource(id = R.drawable.ic_location_pin)
                                 ),
                                 contentDescription = "Profielfoto",

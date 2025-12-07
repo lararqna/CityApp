@@ -7,6 +7,7 @@ import com.google.firebase.Timestamp
 data class Chat(
     val id: String = "",
     val users: List<String> = emptyList(),
-    val lastMessage: String? = null,
-    val lastMessageTimestamp: Timestamp? = null
+    val lastMessageText: String? = null,
+    val lastMessageTimestamp: Timestamp? = null,
+    val lastMessageSenderId: String? = null
 )
