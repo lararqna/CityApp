@@ -12,10 +12,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +60,9 @@ fun LocationDetailScreen(
     var currentUserData by remember { mutableStateOf<User?>(null) }
 
     LaunchedEffect(location.id) {
+        // AANGEPAST: De collectienaam moet overeenkomen met hoe het wordt opgeslagen.
+        // Als je locaties opslaat onder /cities/{cityId}/locations, moet je dat pad hier gebruiken.
+        // Voor nu houd ik het op "attractions" zoals in je originele code.
         db.collection("attractions").document(location.id)
             .collection("reviews")
             .orderBy("timestamp", Query.Direction.DESCENDING)
@@ -151,26 +157,6 @@ fun LocationDetailScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                if (!location.address.isNullOrBlank()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = Color.Gray,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = location.address,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                    }
-                }
-
                 val averageRating by remember(reviews) {
                     derivedStateOf {
                         if (reviews.isEmpty()) 0.0 else reviews.map { it.rating }.average()
@@ -229,23 +215,44 @@ fun LocationDetailScreen(
 
                 Divider()
 
+                // NIEUW: Kaart toegevoegd om de originele poster en hun eerste recensie te tonen
                 if (!location.initialReview.isNullOrBlank() && location.initialRating != null) {
-                    Row(modifier = Modifier.padding(vertical = 6.dp)) {
-                        (1..5).forEach { i ->
-                            Icon(
-                                imageVector = Icons.Filled.Star,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = if (i <= location.initialRating) Color(0xFFFFC107) else Color.LightGray
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Toegevoegd door",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Toegevoegd door ${location.initialUsername ?: "iemand"}",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Row(modifier = Modifier.padding(vertical = 4.dp)) {
+                                (1..5).forEach { i ->
+                                    Icon(
+                                        imageVector = Icons.Filled.Star,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = if (i <= location.initialRating!!) Color(0xFFFFC107) else Color.Gray
+                                    )
+                                }
+                            }
+                            Text(
+                                text = location.initialReview,
+                                style = MaterialTheme.typography.bodyLarge,
                             )
                         }
                     }
-
-                    Text(
-                        text = location.initialReview!!,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
                     Divider()
                 }
 
@@ -305,56 +312,16 @@ fun LocationDetailScreen(
                 }
 
                 if (reviews.isEmpty()) {
-
-                    // ✅ Toon eerste recensie hier onderaan
-                    if (!location.initialReview.isNullOrBlank() && location.initialRating != null) {
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                            )
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-
-                                Text(
-                                    text = location.initialUsername ?: "Eerste recensie",
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-
-                                Row(modifier = Modifier.padding(bottom = 6.dp)) {
-                                    (1..5).forEach { i ->
-                                        Icon(
-                                            imageVector = Icons.Filled.Star,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
-                                            tint = if (i <= location.initialRating)
-                                                Color(0xFFFFC107)
-                                            else
-                                                Color.LightGray
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    text = location.initialReview,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-
-                    } else {
-                        Text("Nog geen beoordelingen. Wees de eerste!", color = Color.Gray)
-                    }
-
+                    Text(
+                        "Nog geen andere beoordelingen.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 } else {
-
                     reviews.forEach { review ->
                         ReviewCard(review = review)
                     }
-
                 }
                 Spacer(modifier = Modifier.height(50.dp))
             }
