@@ -34,6 +34,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -98,7 +99,16 @@ class ChatViewModel(
             read = false,
             usersInChat = listOf(currentUserId, otherUserId)
         )
+        // Optimistic update: voeg lokaal toe voor immediate UI
+        _messages.update { currentMessages -> currentMessages + newMessage }
+
+        // Verstuur naar Firestore (async, maar UI is al geüpdatet)
         messagesRef.add(newMessage)
+            .addOnFailureListener { e ->
+                // Optioneel: als fail, verwijder lokaal (voor robustness)
+                android.util.Log.e("ChatViewModel", "Send failed", e)
+                _messages.update { currentMessages -> currentMessages.filter { it != newMessage } }
+            }
     }
 }
 
@@ -115,25 +125,24 @@ class UnreadSendersViewModel : ViewModel() {
     }
 
     private fun listenForUnreadMessages() {
-        listener?.remove() // Stop oude listener
+        listener?.remove()
         val uid = auth.currentUser?.uid ?: return
 
         listener = db.collectionGroup("messages")
             .whereEqualTo("read", false)
             .whereArrayContains("usersInChat", uid)
-            // VERWIJDERD: .whereNotEqualTo("senderId", uid) -- dit veroorzaakt issues met security validation
+            // GEEN .whereNotEqualTo meer!
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     android.util.Log.e("UnreadSendersViewModel", "Listen failed", e)
                     return@addSnapshotListener
                 }
                 val senders = snapshot?.documents?.mapNotNull { it.getString("senderId") }
-                    ?.filter { it != uid }  // TOEGEVOEGD: filter eigen ID in code (vervangt de verwijderde whereNotEqualTo)
+                    ?.filter { it != uid }  // Filter hier je eigen ID
                     ?.toSet() ?: emptySet()
                 _unreadSenders.value = senders
             }
     }
-
     fun refresh() {
         listenForUnreadMessages()
     }
