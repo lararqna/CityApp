@@ -34,6 +34,12 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.cityapp.ServiceLocator
+import kotlinx.coroutines.launch
+
 
 @Composable
 fun CityDetailScreen(city: City, userLocation: GeoPoint, onBack: () -> Unit) {
