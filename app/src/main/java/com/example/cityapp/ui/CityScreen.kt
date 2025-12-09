@@ -97,8 +97,8 @@ fun CityScreen(modifier: Modifier = Modifier) {
                         singleLine = true,
                         shape = MaterialTheme.shapes.extraLarge,
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFFF4F5F6),
-                            unfocusedContainerColor = Color(0xFFF4F5F6),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent
                         )
@@ -108,7 +108,7 @@ fun CityScreen(modifier: Modifier = Modifier) {
 
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(filteredCities) { city ->
-                            val distanceText = "${calculateDistanceKm(userLocation, GeoPoint(city.latitude, city.longitude))} km"
+                            val distanceText = "${calculateDistanceKm(userLocation, GeoPoint(city.latitude, city.longitude))}"
                             CityCard(city, distanceText) {
                                 selectedCity = city
                             }
