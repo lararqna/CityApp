@@ -1,6 +1,7 @@
 package com.example.cityapp.ui
 
 import com.example.cityapp.models.City
+import android.Manifest
 import android.net.Uri
 import android.view.View
 import android.widget.Toast
@@ -17,11 +18,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,17 +35,22 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import org.osmdroid.config.Configuration
 import coil.compose.rememberAsyncImagePainter
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.ktx.storage
-import org.osmdroid.events.MapListener
-import org.osmdroid.events.ScrollEvent
-import org.osmdroid.events.ZoomEvent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import java.net.URL
+import java.net.URLEncoder
 import java.util.*
 import com.example.cityapp.R
 
@@ -54,13 +58,99 @@ import com.example.cityapp.R
 @Composable
 fun AddCityScreen(onBack: () -> Unit) {
     var cityName by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var geocodingLoading by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val db = Firebase.firestore
     val storage = Firebase.storage
+    val scope = rememberCoroutineScope()
+
+    val fusedLocationClient = remember {
+        LocationServices.getFusedLocationProviderClient(context)
+    }
+    suspend fun reverseGeocode(point: GeoPoint): String? = withContext(Dispatchers.IO) {
+        try {
+            val url =
+                "https://nominatim.openstreetmap.org/reverse?format=json&lat=${point.latitude}&lon=${point.longitude}"
+            val connection = URL(url).openConnection()
+            connection.setRequestProperty("User-Agent", "CityApp/1.0")
+            val response = connection.getInputStream().bufferedReader().readText()
+            val obj = org.json.JSONObject(response)
+            obj.getString("display_name")
+        } catch (_: Exception) {
+            null
+        }
+    }
+    fun requestCurrentLocation() {
+        try {
+            fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
+                if (lastLoc != null) {
+                    val userPoint = GeoPoint(lastLoc.latitude, lastLoc.longitude)
+                    selectedLocation = userPoint
+                    scope.launch {
+                        val foundAddress = reverseGeocode(userPoint)
+                        if (foundAddress != null) {
+                            address = foundAddress
+                        }
+                    }
+                } else {
+                    fusedLocationClient.getCurrentLocation(
+                        Priority.PRIORITY_HIGH_ACCURACY,
+                        null
+                    ).addOnSuccessListener { currentLoc ->
+                        if (currentLoc != null) {
+                            val userPoint = GeoPoint(currentLoc.latitude, currentLoc.longitude)
+                            selectedLocation = userPoint
+                            scope.launch {
+                                val foundAddress = reverseGeocode(userPoint)
+                                if (foundAddress != null) {
+                                    address = foundAddress
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "Kon de locatie niet bepalen.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        } catch (e: SecurityException) {
+            Toast.makeText(context, "Beveiligingsfout bij ophalen locatie.", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            requestCurrentLocation()
+        } else {
+            Toast.makeText(context, "Locatie-permissie geweigerd", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+
+    suspend fun geocode(query: String): GeoPoint? = withContext(Dispatchers.IO) {
+        try {
+            val url =
+                "https://nominatim.openstreetmap.org/search?format=json&q=" +
+                        URLEncoder.encode(query, "UTF-8")
+            val connection = URL(url).openConnection()
+            connection.setRequestProperty("User-Agent", "CityApp/1.0")
+            val response = connection.getInputStream().bufferedReader().readText()
+            val arr = JSONArray(response)
+            if (arr.length() == 0) return@withContext null
+            val obj = arr.getJSONObject(0)
+            GeoPoint(obj.getDouble("lat"), obj.getDouble("lon"))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+
 
     fun uploadImageAndSaveCity(imageUri: Uri, location: GeoPoint) {
         isLoading = true
@@ -114,7 +204,6 @@ fun AddCityScreen(onBack: () -> Unit) {
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Sectie 1: Stadnaam
             SectionTitle("Algemene Informatie")
             OutlinedTextField(
                 value = cityName,
@@ -135,26 +224,64 @@ fun AddCityScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(24.dp))
 
             SectionTitle("Kies Locatie")
-            Text(
-                "Sleep de kaart tot de rode pin op de juiste plek staat.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
+            OutlinedTextField(
+                value = address,
+                onValueChange = { address = it },
+                placeholder = { Text("bv. Antwerpen, België") },
+                modifier = Modifier.fillMaxWidth()
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (address.isBlank()) {
+                            Toast.makeText(context, "Voer een adres in!", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        geocodingLoading = true
+                        scope.launch {
+                            val point = geocode(address)
+                            geocodingLoading = false
+                            if (point == null)
+                                Toast.makeText(context, "Adres niet gevonden!", Toast.LENGTH_LONG).show()
+                            else {
+                                selectedLocation = point
+                            }
+                        }
+                    },
+                    enabled = !geocodingLoading,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (geocodingLoading) CircularProgressIndicator(Modifier.size(20.dp))
+                    else Text("Zoek locatie")
+                }
+
+                IconButton(
+                    onClick = { permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) },
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MyLocation,
+                        contentDescription = "Gebruik mijn huidige locatie",
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             LocationPickerMap(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
                     .clip(RoundedCornerShape(16.dp)),
-                selectedPoint = selectedLocation,
-                onLocationSelected = { selectedLocation = it }
+                selectedPoint = selectedLocation
             )
-            selectedLocation?.let {
-                Text(
-                    text = "Lat: %.4f, Lon: %.4f".format(it.latitude, it.longitude),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
+
             Spacer(Modifier.height(24.dp))
 
             Button(
@@ -173,7 +300,7 @@ fun AddCityScreen(onBack: () -> Unit) {
                 if (isLoading) CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary)
                 else Text("Opslaan")
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(80.dp))
         }
     }
 }
@@ -189,91 +316,6 @@ private fun SectionTitle(title: String) {
 }
 
 
-@Composable
-fun LocationPickerMap(
-    modifier: Modifier = Modifier,
-    selectedPoint: GeoPoint?,
-    onLocationSelected: (GeoPoint) -> Unit
-) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    val mapView = remember {
-        org.osmdroid.config.Configuration.getInstance().apply {
-            userAgentValue = "CityApp"
-        }
-
-        MapView(context).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
-            controller.setZoom(14.0)
-            controller.setCenter(GeoPoint(51.2194, 4.4025))
-            setMultiTouchControls(true)
-            isTilesScaledToDpi = true
-        }
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                else -> {}
-            }
-        }
-
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    LaunchedEffect(selectedPoint) {
-        if (selectedPoint != null) {
-            mapView.overlays.clear()
-
-            val marker = org.osmdroid.views.overlay.Marker(mapView).apply {
-                position = selectedPoint
-                icon = context.getDrawable(R.drawable.ic_location_pin) // jouw blauwe pin
-                setAnchor(
-                    org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
-                    org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
-                )
-                infoWindow = null
-            }
-
-            mapView.overlays.add(marker)
-            mapView.controller.animateTo(selectedPoint)
-            mapView.invalidate()
-        }
-    }
-
-    Box(modifier = modifier) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { mapView },
-            update = { view ->
-                view.addMapListener(object : MapListener {
-                    override fun onScroll(event: ScrollEvent?): Boolean {
-                        onLocationSelected(view.mapCenter as GeoPoint)
-                        return true
-                    }
-
-                    override fun onZoom(event: ZoomEvent?): Boolean {
-                        onLocationSelected(view.mapCenter as GeoPoint)
-                        return true
-                    }
-                })
-            }
-        )
-
-        Icon(
-            painter = painterResource(R.drawable.ic_location_pin),
-            contentDescription = "Location Pin",
-            tint = Color.Unspecified,
-            modifier = Modifier
-                .size(50.dp)
-                .align(Alignment.Center)
-        )
-    }
-}
 
 @Composable
 fun ImagePicker(
